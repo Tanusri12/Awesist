@@ -1,0 +1,12 @@
+ALTER TABLE reminders
+ADD COLUMN sent_at TIMESTAMP;
+
+ALTER TABLE reminders
+ADD COLUMN retry_count INTEGER DEFAULT 0;
+
+ALTER TABLE reminders
+ADD COLUMN last_attempt TIMESTAMP;
+
+
+ALTER TABLE reminders
+ADD COLUMN IF NOT EXISTS due_at TIMESTAMP;
