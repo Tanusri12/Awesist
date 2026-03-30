@@ -16,6 +16,7 @@ from handlers.list_handler import handle_list_reminders, handle_delete_reminder
 from whatsapp import send_whatsapp_message
 
 USER_CACHE = {}
+EXPIRY_MSG_SENT = {}   # phone -> datetime of last expiry message (rate-limit to 1/hour)
 
 # Unicode ranges for Indian scripts (Devanagari, Bengali, Gurmukhi, Gujarati,
 # Oriya, Tamil, Telugu, Kannada, Malayalam, Sinhala)
@@ -187,11 +188,16 @@ def _send_payment_link(phone: str, user: dict):
 def _check_subscription(phone: str, user: dict) -> bool:
     """
     Returns True  → subscription is OK, let the message through.
-    Returns False → trial expired, sent a payment link, block the message.
+    Returns False → expired, payment message sent, block the message.
 
-    Also nudges users who are on trial with < 5 days left (once per day max,
-    tracked via a lightweight in-memory flag to avoid spamming).
+    Nudge schedule (once per day per milestone, keyed by date so server
+    restarts within the same day don't resend):
+      7 days → gentle heads-up
+      5 days → value stats
+      3 days → urgency
+      1 day  → final warning
     """
+    from datetime import datetime
     status = get_subscription_status(phone)
 
     if status["status"] == "active":
@@ -199,66 +205,104 @@ def _check_subscription(phone: str, user: dict) -> bool:
 
     if status["status"] == "trial":
         days_left = status["trial_days_left"]
-        # Nudge once when 5 / 3 / 1 days remain (stored in cache to avoid repeat)
-        nudge_key = f"nudge_{phone}_{days_left}"
-        if days_left in (5, 3, 1) and nudge_key not in USER_CACHE:
+        today     = datetime.utcnow().date().isoformat()
+        nudge_key = f"nudge_{phone}_{days_left}_{today}"
+        if days_left in (7, 5, 3, 1) and nudge_key not in USER_CACHE:
             USER_CACHE[nudge_key] = True
             name = user.get("business_name") or "there"
-            send_whatsapp_message(
-                phone,
-                f"⏳ Hey *{name}*, your free trial ends in *{days_left} day{'s' if days_left > 1 else ''}*.\n\n"
-                "To keep using Awesist after that, subscribe for just *₹99/month*.\n\n"
-                "Reply *subscribe* anytime to get your payment link.",
-                show_help=False,
-            )
-        return True   # still on trial — let the message through
+            send_whatsapp_message(phone, _nudge_msg(name, days_left), show_help=False)
+        return True
 
     # status == 'expired'
-    _send_expired_message(phone, user)
+    _send_expired_message(phone, user, status.get("was_paid", False))
     return False
 
 
-def _send_expired_message(phone: str, user: dict):
-    """Send a friendly payment link when the trial or subscription has expired."""
+def _nudge_msg(name: str, days_left: int) -> str:
+    """Progressive nudge messages as trial winds down."""
+    if days_left == 7:
+        return (
+            f"👋 Hey *{name}*, just a heads-up — your free trial ends in *7 days*.\n\n"
+            "Awesist is just *₹99/month* to keep all your reminders, "
+            "payment tracking, and morning summaries going.\n\n"
+            "Reply *subscribe* anytime to get your payment link."
+        )
+    if days_left == 5:
+        return (
+            f"⏳ *{name}*, your free trial ends in *5 days*.\n\n"
+            "Everything you've saved — orders, customer numbers, balances — "
+            "stays safe when you subscribe.\n\n"
+            "Just *₹99/month* — less than ₹4 a day.\n\n"
+            "Reply *subscribe* to get your payment link."
+        )
+    if days_left == 3:
+        return (
+            f"⚠️ *{name}*, only *3 days left* on your free trial!\n\n"
+            "After that, the bot will pause until you subscribe.\n\n"
+            "Keep your reminders running for just *₹99/month*.\n\n"
+            "👉 Reply *subscribe* now to get your payment link."
+        )
+    # 1 day
+    return (
+        f"🚨 *{name}*, your free trial ends *tomorrow*!\n\n"
+        "Subscribe today so your reminders keep firing without any break.\n\n"
+        "*₹99/month* — that's it.\n\n"
+        "👉 Reply *subscribe* right now to get your payment link."
+    )
+
+
+def _send_expired_message(phone: str, user: dict, was_paid: bool = False):
+    """
+    Send the expiry message. Full stats message the first time, short
+    reminder on subsequent messages (rate-limited to once per hour).
+    """
+    from datetime import datetime
     from repositories.payment_repository import get_trial_stats
 
     name    = user.get("business_name") or "there"
     user_id = user.get("id") or phone
+    now     = datetime.utcnow()
 
-    # ── Stats block — isolated so it never crashes the whole message ───────
+    # Rate-limit: only send full message once per hour
+    last_sent = EXPIRY_MSG_SENT.get(phone)
+    if last_sent and (now - last_sent).total_seconds() < 3600:
+        # Short nudge instead of the full wall of text
+        send_whatsapp_message(
+            phone,
+            f"Your {'subscription' if was_paid else 'trial'} has ended, *{name}*.\n\n"
+            "Reply *subscribe* to get your payment link and continue.",
+            show_help=False,
+        )
+        return
+
+    EXPIRY_MSG_SENT[phone] = now
+
+    # ── Stats block ────────────────────────────────────────────────────────
     try:
         stats = get_trial_stats(user_id)
         stats_lines = []
         if stats["total_reminders"]:
-            stats_lines.append(f"📦 *{stats['total_reminders']}* orders/appointments saved in total")
-        if stats["this_month"]:
-            stats_lines.append(f"🗓️ *{stats['this_month']}* added this month")
+            stats_lines.append(f"📦 *{stats['total_reminders']}* orders/appointments saved")
         if stats["upcoming"]:
-            stats_lines.append(f"⏰ *{stats['upcoming']}* upcoming orders still waiting for reminders")
+            stats_lines.append(f"⏰ *{stats['upcoming']}* upcoming orders waiting for reminders")
         if stats["collected_overall"]:
             stats_lines.append(f"💰 *₹{int(stats['collected_overall'])}* collected overall")
-        if stats["collected_month"]:
-            stats_lines.append(f"📈 *₹{int(stats['collected_month'])}* collected this month")
         if stats["pending_balance"]:
             stats_lines.append(f"💸 *₹{int(stats['pending_balance'])}* still to collect from customers")
 
-        # ROI line — only if they've collected meaningfully more than ₹99
         roi_line = ""
         if stats["collected_overall"] > 990:
             pct = round((99 / stats["collected_overall"]) * 100, 1)
             roi_line = f"\n_Awesist costs just {pct}% of what you've already collected._"
 
         stats_block = (
-            "\n*Here's what you did during your trial:*\n"
-            + "\n".join(stats_lines)
-            + roi_line
-            + "\n\n"
+            "\n" + "\n".join(stats_lines) + roi_line + "\n\n"
         ) if stats_lines else "\n\n"
     except Exception as e:
         print(f"STATS ERROR for {phone[:6]}***: {e}")
         stats_block = "\n\n"
 
-    # ── Payment link — fallback gracefully if Razorpay fails ──────────────
+    # ── Payment link ───────────────────────────────────────────────────────
     try:
         from services.subscription_service import get_or_create_payment_link
         link      = get_or_create_payment_link(phone, name)
@@ -267,15 +311,30 @@ def _send_expired_message(phone: str, user: dict):
         print(f"PAYMENT LINK ERROR for {phone[:6]}***: {e}")
         link_line = "👉 Reply *subscribe* and we'll send you the payment link."
 
-    send_whatsapp_message(
-        phone,
-        f"Hi *{name}* 👋\n\n"
-        f"Your free trial has ended.{stats_block}"
-        f"Keep all of this going for just *₹99/month* — less than ₹4 a day!\n\n"
-        f"{link_line}\n\n"
-        "Your data is safe and will be waiting for you. 🔒",
-        show_help=False,
-    )
+    if was_paid:
+        # Subscription lapsed — different, warmer tone
+        send_whatsapp_message(
+            phone,
+            f"Hi *{name}* 👋\n\n"
+            f"Your Awesist subscription has expired. All your data is safe — "
+            f"just renew to pick up right where you left off.\n\n"
+            f"*Your account summary:*\n{stats_block}"
+            f"Renew for just *₹99/month* to keep everything going.\n\n"
+            f"{link_line}\n\n"
+            "Your data is safe and will be waiting for you. 🔒",
+            show_help=False,
+        )
+    else:
+        # Trial expired
+        send_whatsapp_message(
+            phone,
+            f"Hi *{name}* 👋\n\n"
+            f"Your free trial has ended. Here's what you built:\n{stats_block}"
+            f"Keep it all going for just *₹99/month* — less than ₹4 a day!\n\n"
+            f"{link_line}\n\n"
+            "Your data is safe and will be waiting for you. 🔒",
+            show_help=False,
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────

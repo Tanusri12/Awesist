@@ -120,7 +120,9 @@ def get_subscription_status(phone: str):
                 }
 
         # Trial over, no active subscription
-        return {"status": "expired", "trial_days_left": 0, "expires_at": None}
+        # Distinguish: was_paid=True means subscription lapsed, False means trial expired
+        was_paid = bool(is_paid)
+        return {"status": "expired", "trial_days_left": 0, "expires_at": None, "was_paid": was_paid}
     finally:
         cursor.close()
         release_connection(conn)
