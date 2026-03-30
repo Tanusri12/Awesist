@@ -41,7 +41,7 @@ RAZORPAY_API = "https://api.razorpay.com/v1"
 
 def get_or_create_payment_link(phone: str, business_name: str) -> str:
     """
-    Returns a Razorpay short_url for the ₹99 subscription.
+    Returns a Razorpay short_url for the ₹299 subscription.
 
     If we already created a link for this user (stored in last_payment_link_id),
     we fetch it first.  If it's still unpaid we reuse the same URL so the user
@@ -71,7 +71,7 @@ def _create_payment_link(phone: str, business_name: str) -> str:
     payload = {
         "amount":       SUBSCRIPTION_PRICE_INR * 100,   # Razorpay expects paise
         "currency":     "INR",
-        "description":  "Awesist — Monthly Subscription (₹99)",
+        "description":  "Awesist — Monthly Subscription (₹299)",
         "customer": {
             "contact": f"+{phone}",
             "name":    business_name or "Awesist User",

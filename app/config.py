@@ -21,6 +21,6 @@ RAZORPAY_KEY_SECRET     = os.getenv("RAZORPAY_KEY_SECRET", "")
 RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
 
 # ─── Subscription settings ────────────────────────────────────────────────────
-SUBSCRIPTION_PRICE_INR = int(os.getenv("SUBSCRIPTION_PRICE_INR", "99"))
+SUBSCRIPTION_PRICE_INR = int(os.getenv("SUBSCRIPTION_PRICE_INR", "299"))
 TRIAL_DAYS             = int(os.getenv("TRIAL_DAYS", "30"))
 

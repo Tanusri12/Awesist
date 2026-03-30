@@ -171,7 +171,7 @@ def _send_payment_link(phone: str, user: dict):
         send_whatsapp_message(
             phone,
             f"Hi *{name}* 👋\n\n"
-            "Subscribe to Awesist for just *₹99/month* — that's less than ₹4 a day!\n\n"
+            "Subscribe to Awesist for just *₹299/month* — that's less than ₹10 a day!\n\n"
             f"👉 Pay here: {link}\n\n"
             "Your data is safe and will be waiting for you. 🔒",
             show_help=False,
@@ -180,7 +180,7 @@ def _send_payment_link(phone: str, user: dict):
         print(f"PAYMENT LINK ERROR for {phone[:6]}***: {e}")
         send_whatsapp_message(
             phone,
-            "Here's how to subscribe to Awesist for ₹99/month — please contact us to complete your payment.",
+            "Here's how to subscribe to Awesist for ₹299/month — please contact us to complete your payment.",
             show_help=False,
         )
 
@@ -223,7 +223,7 @@ def _nudge_msg(name: str, days_left: int) -> str:
     if days_left == 7:
         return (
             f"👋 Hey *{name}*, just a heads-up — your free trial ends in *7 days*.\n\n"
-            "Awesist is just *₹99/month* to keep all your reminders, "
+            "Awesist is just *₹299/month* to keep all your reminders, "
             "payment tracking, and morning summaries going.\n\n"
             "Reply *subscribe* anytime to get your payment link."
         )
@@ -232,21 +232,21 @@ def _nudge_msg(name: str, days_left: int) -> str:
             f"⏳ *{name}*, your free trial ends in *5 days*.\n\n"
             "Everything you've saved — orders, customer numbers, balances — "
             "stays safe when you subscribe.\n\n"
-            "Just *₹99/month* — less than ₹4 a day.\n\n"
+            "Just *₹299/month* — less than ₹10 a day.\n\n"
             "Reply *subscribe* to get your payment link."
         )
     if days_left == 3:
         return (
             f"⚠️ *{name}*, only *3 days left* on your free trial!\n\n"
             "After that, the bot will pause until you subscribe.\n\n"
-            "Keep your reminders running for just *₹99/month*.\n\n"
+            "Keep your reminders running for just *₹299/month*.\n\n"
             "👉 Reply *subscribe* now to get your payment link."
         )
     # 1 day
     return (
         f"🚨 *{name}*, your free trial ends *tomorrow*!\n\n"
         "Subscribe today so your reminders keep firing without any break.\n\n"
-        "*₹99/month* — that's it.\n\n"
+        "*₹299/month* — that's it.\n\n"
         "👉 Reply *subscribe* right now to get your payment link."
     )
 
@@ -291,8 +291,8 @@ def _send_expired_message(phone: str, user: dict, was_paid: bool = False):
             stats_lines.append(f"💸 *₹{int(stats['pending_balance'])}* still to collect from customers")
 
         roi_line = ""
-        if stats["collected_overall"] > 990:
-            pct = round((99 / stats["collected_overall"]) * 100, 1)
+        if stats["collected_overall"] > 2990:
+            pct = round((299 / stats["collected_overall"]) * 100, 1)
             roi_line = f"\n_Awesist costs just {pct}% of what you've already collected._"
 
         stats_block = (
@@ -319,7 +319,7 @@ def _send_expired_message(phone: str, user: dict, was_paid: bool = False):
             f"Your Awesist subscription has expired. All your data is safe — "
             f"just renew to pick up right where you left off.\n\n"
             f"*Your account summary:*\n{stats_block}"
-            f"Renew for just *₹99/month* to keep everything going.\n\n"
+            f"Renew for just *₹299/month* to keep everything going.\n\n"
             f"{link_line}\n\n"
             "Your data is safe and will be waiting for you. 🔒",
             show_help=False,
@@ -330,7 +330,7 @@ def _send_expired_message(phone: str, user: dict, was_paid: bool = False):
             phone,
             f"Hi *{name}* 👋\n\n"
             f"Your free trial has ended. Here's what you built:\n{stats_block}"
-            f"Keep it all going for just *₹99/month* — less than ₹4 a day!\n\n"
+            f"Keep it all going for just *₹299/month* — less than ₹10 a day!\n\n"
             f"{link_line}\n\n"
             "Your data is safe and will be waiting for you. 🔒",
             show_help=False,
