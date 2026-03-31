@@ -56,7 +56,8 @@ def handle_create_reminder(user_id: str, phone: str, text: str):
     customer_phone = extracted.get("customer_phone")
     total          = extracted.get("total")
     advance        = extracted.get("advance")
-    reminder_offset = extracted.get("reminder_offset")
+    reminder_offset        = extracted.get("reminder_offset")
+    customer_notify_option = extracted.get("customer_notify_option")
 
     # ── No date at all → send fill-in template ──────────────────────────
     if not due_date and not due_time:
@@ -74,7 +75,9 @@ def handle_create_reminder(user_id: str, phone: str, text: str):
 
     _fast_path_with_date(
         user_id, phone, task, due_date, due_time, due_dt, due_display,
-        customer_phone, total, advance, reminder_offset=reminder_offset
+        customer_phone, total, advance,
+        reminder_offset=reminder_offset,
+        customer_notify_option=customer_notify_option
     )
 
 
@@ -157,7 +160,8 @@ def _fast_path_with_date(
     due_date: str, due_time: str, due_dt,
     due_display: str,
     customer_phone, total, advance,
-    reminder_offset=None
+    reminder_offset=None,
+    customer_notify_option=None
 ):
     """
     Called once we know due_date + due_time.
@@ -220,12 +224,13 @@ def _fast_path_with_date(
     if total is not None:
         if customer_phone:
             _ask_notify_customer(phone, {
+                "user_id": user_id,
                 "task": task, "due_display": due_display,
                 "reminder_id": reminder_id, "reminder_display": reminder_display,
                 "customer_phone": customer_phone,
                 "total": total, "advance": advance,
                 "due_dt": due_dt_iso,
-            })
+            }, preset_option=customer_notify_option)
             return
         # No customer phone — save payment directly
         customer   = _extract_customer(task)
@@ -254,12 +259,13 @@ def _fast_path_with_date(
     # ── Phone known, no total → ask notify first ──────────────────────
     if customer_phone:
         _ask_notify_customer(phone, {
+            "user_id": user_id,
             "task": task, "due_display": due_display,
             "reminder_id": reminder_id, "reminder_display": reminder_display,
             "customer_phone": customer_phone,
             "total": None, "advance": None,
             "due_dt": due_dt_iso,
-        })
+        }, preset_option=customer_notify_option)
         return
 
     # ── Nothing extra → save and done ────────────────────────────────
@@ -812,12 +818,30 @@ def _handle_awaiting_advance(user_id: str, phone: str, text: str, state: dict) -
     return True
 
 
-def _ask_notify_customer(phone: str, state: dict):
-    """Ask vendor when to WhatsApp the customer — 4 timed options with exact dates."""
+def _ask_notify_customer(phone: str, state: dict, preset_option=None):
+    """Ask vendor when to WhatsApp the customer — 4 timed options with exact dates.
+    If preset_option is set (from inline 'notify ...' phrase), skip the question."""
     customer_phone  = state.get("customer_phone", "")
     display_num     = customer_phone[-10:] if len(customer_phone) >= 10 else customer_phone
     reminder_display = state.get("reminder_display", "")
     customer_name   = _extract_customer(state.get("task", "")) or "customer"
+
+    # Map preset_option to the response text the handler understands
+    _preset_map = {
+        "day_before":  "day before",
+        "morning":     "morning",
+        "on_due_date": "on due date",
+        "no":          "no",
+    }
+    if preset_option and preset_option in _preset_map:
+        # Simulate vendor reply — jump straight to the handler (same file, no import needed)
+        full_state = {**state, "step": "awaiting_notify_customer"}
+        set_state(phone, full_state)
+        _handle_awaiting_notify_customer(
+            state.get("user_id", phone), phone,
+            _preset_map[preset_option], full_state
+        )
+        return
 
     due_dt_str = state.get("due_dt")
     if due_dt_str:

@@ -31,10 +31,16 @@ def _local_extract(text: str) -> dict:
     try:
         from parser.extractors.datetime_extractor import extract_datetime
         from parser.extractors.task_extractor import extract_task
+        import re
 
-        dt             = extract_datetime(text)
+        # Strip remind/notify phrases BEFORE date extraction so two dates don't confuse the parser
+        text_for_dt = re.sub(r'\bremind\b.*', '', text, flags=re.I).strip()
+        text_for_dt = re.sub(r'\bnotify\b.*', '', text_for_dt, flags=re.I).strip()
+
+        dt             = extract_datetime(text_for_dt)
         payment_fields = _extract_payment_fields(text)
         reminder_offset = _extract_reminder_offset(text)
+        customer_notify_option = _extract_notify_option(text)
 
         # Strip phone numbers and payment keywords from text before task extraction
         clean_text = _strip_payment_tokens(text, payment_fields)
@@ -57,6 +63,8 @@ def _local_extract(text: str) -> dict:
         result.update(payment_fields)
         if reminder_offset:
             result["reminder_offset"] = reminder_offset
+        if customer_notify_option:
+            result["customer_notify_option"] = customer_notify_option
         return result
     except Exception as e:
         print("Local extraction error:", e)
@@ -131,8 +139,29 @@ def _extract_reminder_offset(text: str):
     return None
 
 
+def _extract_notify_option(text: str):
+    """
+    Extract inline customer notification timing from phrases like:
+      "notify day before", "notify morning", "notify on due date", "notify no"
+    Returns one of: "day_before", "morning", "on_due_date", "no", or None.
+    """
+    import re
+    t = text.lower()
+    if "notify" not in t:
+        return None
+    if re.search(r'\bnotify\s+(?:day\s+before|1\s+day\s+before)', t):
+        return "day_before"
+    if re.search(r'\bnotify\s+(?:in\s+the\s+)?morning', t):
+        return "morning"
+    if re.search(r'\bnotify\s+(?:on\s+)?(?:due\s+date|due\s+day|delivery|the\s+day)', t):
+        return "on_due_date"
+    if re.search(r'\bnotify\s+no\b', t):
+        return "no"
+    return None
+
+
 def _strip_payment_tokens(text: str, payment_fields: dict) -> str:
-    """Remove phone numbers, payment keywords, and remind phrases from text so the task stays clean."""
+    """Remove phone numbers, payment keywords, and remind/notify phrases from text so the task stays clean."""
     import re
     t = text
 
@@ -141,9 +170,9 @@ def _strip_payment_tokens(text: str, payment_fields: dict) -> str:
         digits = payment_fields["customer_phone"][2:]   # strip leading "91"
         t = re.sub(r'(?:\+91|91)?' + re.escape(digits), '', t)
 
-    # Remove "remind ..." phrase — everything from "remind" to end of string
-    # Handles: "remind day before", "remind on 12th April at 4pm", "remind 1 hr before", etc.
+    # Remove "remind ..." and "notify ..." phrases — everything from keyword to end of string
     t = re.sub(r'\bremind\b.*', '', t, flags=re.I)
+    t = re.sub(r'\bnotify\b.*', '', t, flags=re.I)
 
     # Remove payment keyword phrases: "total 1200", "advance 300", "paid 300", etc.
     t = re.sub(
@@ -155,8 +184,9 @@ def _strip_payment_tokens(text: str, payment_fields: dict) -> str:
         r'\b\d+(?:\.\d+)?\s*(?:total|advance|adv|paid|deposit|rupees?|rs\.?)\b',
         '', t, flags=re.I
     )
-    # Collapse extra whitespace
+    # Collapse extra whitespace and strip dangling prepositions/conjunctions at end
     t = re.sub(r'\s{2,}', ' ', t).strip()
+    t = re.sub(r'\s+\b(?:at|on|by|for|to|and|the|a|an)\b\s*$', '', t, flags=re.I).strip()
     return t
 
 
@@ -252,6 +282,8 @@ Fields:
     "1hr" (for "remind 1 hr before"),
     or a time string like "09:00" for "remind 9am" / "remind at 10am".
     Return null if no remind phrase is present.
+- customer_notify_option: if the message contains a "notify ..." phrase, return one of:
+    "day_before", "morning", "on_due_date", "no". Return null if not present.
 
 Message:
 {message_text}"""
