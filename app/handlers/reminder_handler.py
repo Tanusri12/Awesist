@@ -836,8 +836,18 @@ def _ask_notify_customer(phone: str, state: dict, preset_option=None):
 
 
 def _handle_awaiting_notify_customer(user_id: str, phone: str, text: str, state: dict) -> bool:
-    """Handle vendor's reply to customer notification timing — day before / morning / on due date / no."""
+    """Handle vendor's reply to customer notification timing — free date/time or 'no'."""
     response = text.lower().strip()
+
+    # If this looks like a new full order (long message with payment/order keywords), restart
+    import re as _re
+    has_payment_keywords = bool(_re.search(r'\b(total|advance|paid|deposit)\b', response))
+    has_remind_keyword   = "remind" in response
+    is_long_message      = len(text.split()) > 5
+    if (has_payment_keywords or has_remind_keyword) and is_long_message:
+        clear_state(phone)
+        handle_create_reminder(user_id, phone, text)
+        return True
 
     task           = state.get("task")
     due_display    = state.get("due_display", "")

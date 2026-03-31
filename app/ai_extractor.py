@@ -184,6 +184,14 @@ def _strip_payment_tokens(text: str, payment_fields: dict) -> str:
         r'\b\d+(?:\.\d+)?\s*(?:total|advance|adv|paid|deposit|rupees?|rs\.?)\b',
         '', t, flags=re.I
     )
+    # Strip date/time words: "13th April", "April", "5pm", "at 5pm", "tomorrow", etc.
+    t = re.sub(r'\b\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\b', '', t, flags=re.I)
+    t = re.sub(r'\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{1,2}(?:st|nd|rd|th)?\b', '', t, flags=re.I)
+    t = re.sub(r'\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b', '', t, flags=re.I)
+    t = re.sub(r'\b(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)\b', '', t, flags=re.I)
+    t = re.sub(r'\b(?:tomorrow|today|tonight|morning|evening|next\s+\w+)\b', '', t, flags=re.I)
+    t = re.sub(r'\b\d{1,2}(?:st|nd|rd|th)?\b', '', t)   # strip bare ordinals like "13th"
+
     # Collapse extra whitespace and strip dangling prepositions/conjunctions at end
     t = re.sub(r'\s{2,}', ' ', t).strip()
     t = re.sub(r'\s+\b(?:at|on|by|for|to|and|the|a|an)\b\s*$', '', t, flags=re.I).strip()
