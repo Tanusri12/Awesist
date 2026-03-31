@@ -3,6 +3,34 @@ from repositories.db_pool import get_connection, release_connection
 from datetime import datetime
 
 
+def create_payment_only(user_id: str, customer: str, total: float, advance: float):
+    """
+    Create a payment record with NO reminder — for payment-only tracking.
+    reminder_id is NULL; the entry still shows up in unpaid / earnings.
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO payments (user_id, reminder_id, customer, total, advance, status, notify_customer)
+            VALUES (%s, NULL, %s, %s, %s, 'pending', FALSE)
+            RETURNING id
+            """,
+            (user_id, customer, total, advance)
+        )
+        result = cursor.fetchone()
+        conn.commit()
+        return result[0] if result else None
+    except Exception as e:
+        conn.rollback()
+        print("ERROR creating payment-only record:", e)
+        return None
+    finally:
+        cursor.close()
+        release_connection(conn)
+
+
 def create_payment(user_id: str, reminder_id: int, customer: str, total: float, advance: float, customer_phone: str = None, notify_customer: bool = True):
     conn = get_connection()
     try:

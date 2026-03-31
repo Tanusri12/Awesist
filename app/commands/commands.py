@@ -19,6 +19,7 @@ def handle_command(phone: str, text: str, user: dict = None) -> bool:
             "✅ *paid all* → clear all balances\n"
             "📊 *earnings* → this month's income\n"
             "📊 *earnings last month* → previous month\n"
+            "💳 *track <name> total <amt> advance <amt>* → track payment (no reminder)\n"
             "❌ *delete <number>* → delete a reminder\n"
             "🚫 *cancel* → cancel current action\n\n"
             "Reply *how* to see message examples",
@@ -44,8 +45,11 @@ def handle_command(phone: str, text: str, user: dict = None) -> bool:
             "_Anjali cake 13th April 5pm remind day before_\n"
             "_Rahul order 20th April 6pm remind 9am_\n"
             "_Meena appointment tomorrow 11am remind 1 hr before_\n\n"
+            "*Payment only (no reminder):*\n"
+            "_track Anjali total 1200 advance 300_\n"
+            "_track Rahul total 800_\n\n"
             "📅 I understand: today, tomorrow, next Monday, 13th April, 5pm, evening…\n"
-            "💬 Hindi/Hinglish also works!",
+            "🌐 I currently understand English only.",
             show_help=False
         )
         return True

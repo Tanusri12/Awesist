@@ -1,6 +1,9 @@
+import re
 from datetime import datetime, date
 from calendar import month_name
-from repositories.payment_repository import get_unpaid, mark_paid, get_monthly_earnings
+from repositories.payment_repository import (
+    get_unpaid, mark_paid, get_monthly_earnings, create_payment_only,
+)
 from whatsapp import send_whatsapp_message
 
 
@@ -80,6 +83,81 @@ def handle_mark_paid(user_id: str, phone: str, text: str):
     r = matches[0]
     mark_paid(r["id"], user_id)
     send_whatsapp_message(phone, f"✅ Rs.{float(r['balance']):.0f} collected from *{r['customer']}*. 💰")
+
+
+def handle_track_payment(user_id: str, phone: str, text: str):
+    """
+    Parse: track <name> [total <amount>] [advance <amount>]
+
+    Examples:
+      track Anjali total 1200 advance 300
+      track Rahul total 800
+      track Meena 9876543210 total 500
+    """
+    # Strip the leading "track" keyword
+    body = re.sub(r"^track\s+", "", text.strip(), flags=re.IGNORECASE).strip()
+
+    if not body:
+        send_whatsapp_message(
+            phone,
+            "❌ Tell me who to track.\n\n"
+            "Example: *track Anjali total 1200 advance 300*"
+        )
+        return
+
+    # Extract total
+    total_match   = re.search(r"\btotal\s+(\d+(?:\.\d+)?)", body, re.IGNORECASE)
+    advance_match = re.search(r"\b(?:advance|paid)\s+(\d+(?:\.\d+)?)", body, re.IGNORECASE)
+
+    total   = float(total_match.group(1))   if total_match   else 0.0
+    advance = float(advance_match.group(1)) if advance_match else 0.0
+
+    if total == 0:
+        send_whatsapp_message(
+            phone,
+            "❌ Please include the total amount.\n\n"
+            "Example: *track Anjali total 1200 advance 300*"
+        )
+        return
+
+    if advance > total:
+        send_whatsapp_message(phone, "❌ Advance can't be more than the total amount.")
+        return
+
+    # Customer name = everything before first keyword (total / advance / paid / phone number)
+    name_end = re.search(
+        r"\b(?:total|advance|paid|\d{10})\b", body, re.IGNORECASE
+    )
+    customer = body[:name_end.start()].strip() if name_end else body.strip()
+    # Remove any stray phone number from the name
+    customer = re.sub(r"\d{10,}", "", customer).strip()
+
+    if not customer:
+        send_whatsapp_message(
+            phone,
+            "❌ I need a customer name.\n\n"
+            "Example: *track Anjali total 1200 advance 300*"
+        )
+        return
+
+    create_payment_only(user_id, customer, total, advance)
+
+    balance = total - advance
+    if balance > 0:
+        msg = (
+            f"✅ *{customer}* — payment tracked!\n\n"
+            f"💰 Total: ₹{total:.0f}\n"
+            f"✅ Advance: ₹{advance:.0f}\n"
+            f"⏳ Balance due: *₹{balance:.0f}*\n\n"
+            "When collected, send *unpaid* → then *paid <number>*"
+        )
+    else:
+        msg = (
+            f"✅ *{customer}* — fully paid! ₹{total:.0f} recorded.\n\n"
+            "See earnings with *earnings*"
+        )
+
+    send_whatsapp_message(phone, msg)
 
 
 def handle_earnings(user_id: str, phone: str, text: str):
