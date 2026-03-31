@@ -22,8 +22,7 @@ def handle_command(phone: str, text: str, user: dict = None) -> bool:
             "💳 *track <name> total <amt> advance <amt>* → track payment (no reminder)\n"
             "❌ *delete <number>* → delete a reminder\n"
             "🚫 *cancel* → cancel current action\n\n"
-            "Reply *how* to see message examples",
-            show_help=False
+            "Reply *how* to see message examples"
         )
         return True
 
@@ -49,8 +48,7 @@ def handle_command(phone: str, text: str, user: dict = None) -> bool:
             "_track Anjali total 1200 advance 300_\n"
             "_track Rahul total 800_\n\n"
             "📅 I understand: today, tomorrow, next Monday, 13th April, 5pm, evening…\n"
-            "🌐 I currently understand English only.",
-            show_help=False
+            "🌐 I currently understand English only."
         )
         return True
 

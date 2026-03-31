@@ -4,7 +4,11 @@ from config import WHATSAPP_TOKEN, PHONE_NUMBER_ID
 
 def send_whatsapp_message(phone_number: str, message: str, show_help: bool = True) -> bool:
     if show_help:
-        message = f"{message}\n\n💡 Type *help* anytime to see commands."
+        message = (
+            f"{message}\n\n"
+            "─────────────────\n"
+            "💡 *reminders* · *unpaid* · *earnings* · *help*"
+        )
 
     url = f"https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages"
 
