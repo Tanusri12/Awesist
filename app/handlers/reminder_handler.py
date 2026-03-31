@@ -803,8 +803,8 @@ def _handle_awaiting_advance(user_id: str, phone: str, text: str, state: dict) -
 
     notify_line = ""
     if notify_customer and customer_notify_at:
-        customer_name = _extract_customer(task) or "customer"
-        notify_line = f"\n📲 {customer_name} notified: {customer_notify_at.strftime('%d %b, %I:%M %p')}"
+        display_num_adv = (state.get("customer_phone") or "")[-10:]
+        notify_line = f"\n📲 {display_num_adv} notified: {customer_notify_at.strftime('%d %b, %I:%M %p')}"
 
     send_whatsapp_message(
         phone,
@@ -819,57 +819,18 @@ def _handle_awaiting_advance(user_id: str, phone: str, text: str, state: dict) -
 
 
 def _ask_notify_customer(phone: str, state: dict, preset_option=None):
-    """Ask vendor when to WhatsApp the customer — 4 timed options with exact dates.
-    If preset_option is set (from inline 'notify ...' phrase), skip the question."""
-    customer_phone  = state.get("customer_phone", "")
-    display_num     = customer_phone[-10:] if len(customer_phone) >= 10 else customer_phone
+    """Ask vendor when to WhatsApp the customer — free text date/time or 'no'."""
+    customer_phone   = state.get("customer_phone", "")
+    display_num      = customer_phone[-10:] if len(customer_phone) >= 10 else customer_phone
     reminder_display = state.get("reminder_display", "")
-    customer_name   = _extract_customer(state.get("task", "")) or "customer"
-
-    # Map preset_option to the response text the handler understands
-    _preset_map = {
-        "day_before":  "day before",
-        "morning":     "morning",
-        "on_due_date": "on due date",
-        "no":          "no",
-    }
-    if preset_option and preset_option in _preset_map:
-        # Simulate vendor reply — jump straight to the handler (same file, no import needed)
-        full_state = {**state, "step": "awaiting_notify_customer"}
-        set_state(phone, full_state)
-        _handle_awaiting_notify_customer(
-            state.get("user_id", phone), phone,
-            _preset_map[preset_option], full_state
-        )
-        return
-
-    due_dt_str = state.get("due_dt")
-    if due_dt_str:
-        try:
-            due_dt     = datetime.fromisoformat(due_dt_str)
-            day_before = (due_dt - timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
-            morning    = due_dt.replace(hour=8, minute=0, second=0, microsecond=0)
-            db_str     = day_before.strftime('%d %b, %I:%M %p')
-            mor_str    = morning.strftime('%d %b, %I:%M %p')
-            due_str    = due_dt.strftime('%d %b, %I:%M %p')
-            options = (
-                f"*day before* → {db_str}\n"
-                f"*morning* → {mor_str}\n"
-                f"*on due date* → {due_str}\n"
-                f"*no* → don't notify"
-            )
-        except Exception:
-            options = "*day before*  ·  *morning*  ·  *on due date*  ·  *no*"
-    else:
-        options = "*day before*  ·  *morning*  ·  *on due date*  ·  *no*"
 
     set_state(phone, {**state, "step": "awaiting_notify_customer"})
     send_whatsapp_message(
         phone,
-        f"📱 Got {customer_name}'s number ({display_num}).\n\n"
         f"⏰ Your reminder: {reminder_display} ✓\n\n"
-        f"When should I WhatsApp {customer_name}?\n\n"
-        f"{options}",
+        f"📲 When should I WhatsApp *{display_num}*?\n\n"
+        f"Type a date & time e.g. _12 Apr 3pm_\n"
+        f"or *no* to skip",
         show_help=False
     )
 
@@ -895,37 +856,32 @@ def _handle_awaiting_notify_customer(user_id: str, phone: str, text: str, state:
     no_words = ("no", "nahi", "na", "nope", "n", "don't notify", "dont notify", "skip")
     if response in no_words:
         notify_customer = False
-    elif due_dt_str:
+    else:
+        # Parse free-form date/time e.g. "12 Apr 3pm", "tomorrow 9am"
         try:
-            due_dt = datetime.fromisoformat(due_dt_str)
-            if "day before" in response or response == "day_before":
-                customer_notify_at = (due_dt - timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
-                notify_label = customer_notify_at.strftime('%d %b, %I:%M %p')
-            elif "morning" in response:
-                customer_notify_at = due_dt.replace(hour=8, minute=0, second=0, microsecond=0)
-                notify_label = customer_notify_at.strftime('%d %b, %I:%M %p')
-            elif "due date" in response or "on due" in response or "due" in response:
-                customer_notify_at = due_dt
+            from parser.extractors.datetime_extractor import extract_datetime
+            custom_dt_parts = extract_datetime(text)
+            if custom_dt_parts.get("date"):
+                cdate = custom_dt_parts["date"]
+                ctime = custom_dt_parts.get("time") or "09:00"
+                customer_notify_at = _build_datetime(cdate, ctime)
                 notify_label = customer_notify_at.strftime('%d %b, %I:%M %p')
             else:
-                # Unrecognised — prompt again
                 send_whatsapp_message(
                     phone,
-                    "⚠️ Please reply with one of:\n*day before*  ·  *morning*  ·  *on due date*  ·  *no*",
+                    "⚠️ I couldn't read that time.\n\n"
+                    "Type a date & time e.g. _12 Apr 3pm_  ·  or *no* to skip",
                     show_help=False
                 )
                 return True
         except Exception:
             notify_customer = False
-    else:
-        notify_customer = False
 
-    customer_name  = _extract_customer(task) or "customer"
-    display_num    = (customer_phone or "")[-10:]
+    display_num = (customer_phone or "")[-10:]
     notify_line = (
-        f"📲 {customer_name} notified: {notify_label}"
+        f"📲 {display_num} notified: {notify_label}"
         if notify_customer and notify_label
-        else "📵 Customer will not be notified"
+        else "📵 No customer notification"
     )
 
     # ── Total known → save payment and finish ────────────────────────────
