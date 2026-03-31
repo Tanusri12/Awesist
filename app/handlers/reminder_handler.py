@@ -158,48 +158,49 @@ def _fast_path_with_date(
 
     reminder_display = reminder_dt.strftime('%d %b %Y %I:%M %p')
 
-    # ── Total known → save payment and confirm fully ─────────────────
+    # ── Total known → ask about customer notification (if phone known), then save ─
     if total is not None:
-        customer     = _extract_customer(task)
-        adv_amount   = min(float(advance or 0), float(total))
-        balance      = float(total) - adv_amount
+        if customer_phone:
+            # Ask vendor if they want to notify the customer before saving payment
+            _ask_notify_customer(phone, {
+                "task": task, "due_display": due_display,
+                "reminder_id": reminder_id, "reminder_display": reminder_display,
+                "customer_phone": customer_phone,
+                "total": total, "advance": advance
+            })
+            return
+        # No customer phone — save payment directly
+        customer   = _extract_customer(task)
+        adv_amount = min(float(advance or 0), float(total))
+        balance    = float(total) - adv_amount
         create_payment(
             user_id=user_id, reminder_id=reminder_id, customer=customer,
-            total=float(total), advance=adv_amount, customer_phone=customer_phone
+            total=float(total), advance=adv_amount, customer_phone=None, notify_customer=False
         )
         set_state(phone, {"step": "just_saved", "reminder_id": reminder_id})
         payment_line = (
             f"💰 Rs.{adv_amount:.0f} advance  ·  Rs.{balance:.0f} balance pending"
             if balance > 0 else "💰 Fully paid ✅"
         )
-        notify_line = "\n📱 Customer will be notified on the due date." if customer_phone else ""
         send_whatsapp_message(
             phone,
             f"✅ *All saved!*\n\n"
             f"📝 {task}\n"
             f"📅 Due: {due_display}\n"
             f"⏰ Reminder: {reminder_display}\n"
-            f"{payment_line}{notify_line}\n\n"
+            f"{payment_line}\n\n"
             f"Reply *unpaid* to see pending balances  ·  *edit* to update this"
         )
         return
 
-    # ── Phone known, no total → one more question ─────────────────────
+    # ── Phone known, no total → ask notify first ──────────────────────
     if customer_phone:
-        set_state(phone, {
-            "step": "awaiting_payment",
+        _ask_notify_customer(phone, {
             "task": task, "due_display": due_display,
             "reminder_id": reminder_id, "reminder_display": reminder_display,
-            "customer_phone": customer_phone
+            "customer_phone": customer_phone,
+            "total": None, "advance": None
         })
-        send_whatsapp_message(
-            phone,
-            f"✅ Reminder set!\n\n"
-            f"📝 {task}\n📅 Due: {due_display}\n"
-            f"⏰ Reminder: {reminder_display}\n\n"
-            f"💰 What's the total order amount?\n\n"
-            f"Reply with amount e.g. *850*  ·  or *skip*"
-        )
         return
 
     # ── Nothing extra → save and done ────────────────────────────────
@@ -310,6 +311,9 @@ def handle_reminder_state(user_id: str, phone: str, text: str, state: dict) -> b
 
     if step == "awaiting_reminder_time":
         return _handle_awaiting_reminder_time(user_id, phone, text, state)
+
+    if step == "awaiting_notify_customer":
+        return _handle_awaiting_notify_customer(user_id, phone, text, state)
 
     if step == "just_saved":
         return _handle_just_saved(user_id, phone, text, state)
@@ -610,16 +614,17 @@ def _handle_awaiting_customer_phone(user_id: str, phone: str, text: str, state: 
             )
             return True
 
-    state["step"] = "awaiting_payment"
     if customer_phone:
         state["customer_phone"] = customer_phone
-    set_state(phone, state)
-
-    send_whatsapp_message(
-        phone,
-        f"💰 What's the total order amount?\n\n"
-        f"Reply with amount e.g. *850*  ·  or *skip* to skip"
-    )
+        _ask_notify_customer(phone, state)
+    else:
+        state["step"] = "awaiting_payment"
+        set_state(phone, state)
+        send_whatsapp_message(
+            phone,
+            f"💰 What's the total order amount?\n\n"
+            f"Reply with amount e.g. *850*  ·  or *skip* to skip"
+        )
     return True
 
 
@@ -658,7 +663,8 @@ def _handle_awaiting_payment(user_id: str, phone: str, text: str, state: dict) -
         "reminder_id":      reminder_id,
         "reminder_display": reminder_disp,
         "total":            total,
-        "customer_phone":   state.get("customer_phone")
+        "customer_phone":   state.get("customer_phone"),
+        "notify_customer":  state.get("notify_customer", True)
     })
 
     send_whatsapp_message(
@@ -703,7 +709,8 @@ def _handle_awaiting_advance(user_id: str, phone: str, text: str, state: dict) -
         customer=customer,
         total=total,
         advance=advance,
-        customer_phone=customer_phone
+        customer_phone=customer_phone,
+        notify_customer=state.get("notify_customer", True)
     )
 
     clear_state(phone)
@@ -722,6 +729,78 @@ def _handle_awaiting_advance(user_id: str, phone: str, text: str, state: dict) -
         f"⏰ Reminder: {reminder_disp}\n"
         f"{payment_line}\n\n"
         f"Reply *unpaid* anytime to see pending balances."
+    )
+    return True
+
+
+def _ask_notify_customer(phone: str, state: dict):
+    """Ask vendor if they want to WhatsApp the customer when the order is due."""
+    customer_phone = state.get("customer_phone", "")
+    display_num = customer_phone[-10:] if len(customer_phone) >= 10 else customer_phone
+    set_state(phone, {**state, "step": "awaiting_notify_customer"})
+    send_whatsapp_message(
+        phone,
+        f"📱 Got customer's number (*{display_num}*).\n\n"
+        f"Should I WhatsApp them when the order is due?\n\n"
+        f"Reply: *yes* · *no*",
+        show_help=False
+    )
+
+
+def _handle_awaiting_notify_customer(user_id: str, phone: str, text: str, state: dict) -> bool:
+    """Handle the vendor's yes/no response to notifying the customer."""
+    response = text.lower().strip()
+    notify_customer = response in ("yes", "y", "haan", "ha", "ok", "okay", "sure", "yep", "yup")
+
+    task           = state.get("task")
+    due_display    = state.get("due_display", "")
+    reminder_id    = state.get("reminder_id")
+    reminder_disp  = state.get("reminder_display", "")
+    customer_phone = state.get("customer_phone") if notify_customer else state.get("customer_phone")
+    total          = state.get("total")
+    advance        = state.get("advance")
+
+    # If total is already known → save payment and finish
+    if total is not None:
+        customer   = _extract_customer(task)
+        adv_amount = min(float(advance or 0), float(total))
+        balance    = float(total) - adv_amount
+        create_payment(
+            user_id=user_id, reminder_id=reminder_id, customer=customer,
+            total=float(total), advance=adv_amount,
+            customer_phone=customer_phone, notify_customer=notify_customer
+        )
+        set_state(phone, {"step": "just_saved", "reminder_id": reminder_id})
+        payment_line = (
+            f"💰 Rs.{adv_amount:.0f} advance  ·  Rs.{balance:.0f} balance pending"
+            if balance > 0 else "💰 Fully paid ✅"
+        )
+        notify_line = "\n📱 Customer will be notified on the due date. ✅" if notify_customer else ""
+        send_whatsapp_message(
+            phone,
+            f"✅ *All saved!*\n\n"
+            f"📝 {task}\n"
+            f"📅 Due: {due_display}\n"
+            f"⏰ Reminder: {reminder_disp}\n"
+            f"{payment_line}{notify_line}\n\n"
+            f"Reply *unpaid* to see pending balances  ·  *edit* to update this"
+        )
+        return True
+
+    # Total not yet known → go to payment step
+    set_state(phone, {
+        "step":             "awaiting_payment",
+        "task":             task,
+        "due_display":      due_display,
+        "reminder_id":      reminder_id,
+        "reminder_display": reminder_disp,
+        "customer_phone":   customer_phone,
+        "notify_customer":  notify_customer,
+    })
+    send_whatsapp_message(
+        phone,
+        f"💰 What's the total order amount?\n\n"
+        f"Reply with amount e.g. *850*  ·  or *skip*"
     )
     return True
 

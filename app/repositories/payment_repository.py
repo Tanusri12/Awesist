@@ -3,17 +3,17 @@ from repositories.db_pool import get_connection, release_connection
 from datetime import datetime
 
 
-def create_payment(user_id: str, reminder_id: int, customer: str, total: float, advance: float, customer_phone: str = None):
+def create_payment(user_id: str, reminder_id: int, customer: str, total: float, advance: float, customer_phone: str = None, notify_customer: bool = True):
     conn = get_connection()
     try:
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT INTO payments (user_id, reminder_id, customer, total, advance, status, customer_phone)
-            VALUES (%s, %s, %s, %s, %s, 'pending', %s)
+            INSERT INTO payments (user_id, reminder_id, customer, total, advance, status, customer_phone, notify_customer)
+            VALUES (%s, %s, %s, %s, %s, 'pending', %s, %s)
             RETURNING id
             """,
-            (user_id, reminder_id, customer, total, advance, customer_phone)
+            (user_id, reminder_id, customer, total, advance, customer_phone, notify_customer)
         )
         result = cursor.fetchone()
         conn.commit()
@@ -110,7 +110,7 @@ def get_payment_for_reminder(reminder_id: int) -> dict:
         cursor.execute(
             """
             SELECT id, customer, customer_phone, total, advance,
-                   ROUND(total - advance, 2) AS balance, status
+                   ROUND(total - advance, 2) AS balance, status, notify_customer
             FROM payments
             WHERE reminder_id = %s
             """,
@@ -247,6 +247,33 @@ def get_monthly_earnings(user_id: str, year: int, month: int) -> dict:
             "order_count": order_count,
             "customers":   [dict(r) for r in rows],
         }
+    finally:
+        cursor.close()
+        release_connection(conn)
+
+
+def get_customer_notification_count(user_id: str) -> int:
+    """Count how many customer notifications have already been sent for this user."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT COUNT(*)
+            FROM reminders r
+            JOIN payments p ON p.reminder_id = r.id
+            WHERE r.user_id = %s
+              AND r.status = 'sent'
+              AND p.customer_phone IS NOT NULL
+              AND p.notify_customer = TRUE
+            """,
+            (user_id,)
+        )
+        result = cursor.fetchone()
+        return int(result[0]) if result else 0
+    except Exception as e:
+        print("ERROR get_customer_notification_count:", e)
+        return 0
     finally:
         cursor.close()
         release_connection(conn)
