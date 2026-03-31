@@ -3,6 +3,7 @@ from datetime import datetime, date
 from calendar import month_name
 from repositories.payment_repository import (
     get_unpaid, mark_paid, get_monthly_earnings, create_payment_only,
+    delete_payment_entry,
 )
 from whatsapp import send_whatsapp_message
 
@@ -28,11 +29,8 @@ def handle_unpaid(user_id: str, phone: str):
             f"*Balance: Rs.{float(r['balance']):.0f}*{due_str}\n\n"
         )
     message += f"Total pending: *Rs.{total_pending:.0f}*\n\n"
-    message += "*To mark as collected:*\n"
-    for i, r in enumerate(unpaid, start=1):
-        customer = r["customer"] or r["task"] or f"#{i}"
-        message += f"• *paid {i}* → {customer}\n"
-    message += "• *paid all* → clear everything"
+    message += "*paid <number>* → mark collected  ·  *paid all* → clear all\n"
+    message += "*remove <number>* → delete an entry"
     send_whatsapp_message(phone, message)
 
 
@@ -83,6 +81,27 @@ def handle_mark_paid(user_id: str, phone: str, text: str):
     r = matches[0]
     mark_paid(r["id"], user_id)
     send_whatsapp_message(phone, f"✅ Rs.{float(r['balance']):.0f} collected from *{r['customer']}*. 💰")
+
+
+def handle_remove_payment(user_id: str, phone: str, text: str):
+    """Remove a payment entry from the unpaid list by number. remove <number>"""
+    parts = text.strip().split()
+    if len(parts) < 2 or not parts[1].isdigit():
+        send_whatsapp_message(phone, "❌ Send: *remove 2*  (use the number from *unpaid* list)")
+        return
+    index  = int(parts[1]) - 1
+    unpaid = get_unpaid(user_id)
+    if index < 0 or index >= len(unpaid):
+        send_whatsapp_message(phone, "❌ Entry not found. Send *unpaid* to see your list.")
+        return
+    r = unpaid[index]
+    customer = r["customer"] or r.get("task") or f"#{index + 1}"
+    delete_payment_entry(r["id"], user_id)
+    send_whatsapp_message(
+        phone,
+        f"✅ Removed *{customer}* (₹{float(r['total']):.0f}) from your unpaid list.",
+        show_help=False
+    )
 
 
 def handle_track_payment(user_id: str, phone: str, text: str):

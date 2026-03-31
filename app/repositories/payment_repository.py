@@ -86,6 +86,23 @@ def get_unpaid(user_id: str) -> list:
         release_connection(conn)
 
 
+def delete_payment_entry(payment_id: int, user_id: str) -> bool:
+    """Permanently delete a payment entry — used to remove duplicates/mistakes."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM payments WHERE id = %s AND user_id = %s",
+            (payment_id, user_id)
+        )
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        return deleted
+    finally:
+        cursor.close()
+        release_connection(conn)
+
+
 def mark_paid(payment_id: int, user_id: str) -> dict:
     """Mark a payment as fully collected."""
     conn = get_connection()

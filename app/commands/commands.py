@@ -17,6 +17,7 @@ def handle_command(phone: str, text: str, user: dict = None) -> bool:
             "📊 *earnings* → this month's income\n"
             "💳 *track <name> total <amt>* → payment only\n"
             "❌ *delete <number>* → remove a reminder\n"
+            "🗑️ *remove <number>* → delete from unpaid list\n"
             "🚫 *cancel* → cancel current action\n\n"
             "_Reply *how* to see message examples_",
             show_help=False

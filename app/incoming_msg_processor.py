@@ -11,7 +11,7 @@ from repositories.user_repository import (
 from commands.commands import handle_command
 from handlers.onboarding import handle_onboarding
 from handlers.reminder_handler import handle_create_reminder, handle_reminder_state
-from handlers.payment_handler import handle_unpaid, handle_mark_paid, handle_earnings, handle_track_payment
+from handlers.payment_handler import handle_unpaid, handle_mark_paid, handle_earnings, handle_track_payment, handle_remove_payment
 from handlers.list_handler import handle_list_reminders, handle_delete_reminder
 from whatsapp import send_whatsapp_message
 
@@ -423,6 +423,10 @@ def route_intent(user_id: str, phone: str, text: str):
 
     if text_lower.startswith("track "):
         handle_track_payment(user_id, phone, text)
+        return
+
+    if text_lower.startswith("remove "):
+        handle_remove_payment(user_id, phone, text)
         return
 
     if text_lower == "paid" or text_lower.startswith("paid "):
