@@ -889,7 +889,7 @@ def _handle_awaiting_notify_customer(user_id: str, phone: str, text: str, state:
         adv_amount = min(float(advance or 0), float(total))
         balance    = float(total) - adv_amount
         create_payment(
-            user_id=user_id, reminder_id=reminder_id, customer=customer_name,
+            user_id=user_id, reminder_id=reminder_id, customer=_extract_customer(task),
             total=float(total), advance=adv_amount,
             customer_phone=customer_phone if notify_customer else None,
             notify_customer=notify_customer,

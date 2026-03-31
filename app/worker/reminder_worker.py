@@ -104,7 +104,8 @@ def process_customer_notifications():
             from repositories.user_repository import get_subscription_status
             from repositories.payment_repository import get_customer_notification_count
 
-            sub      = get_subscription_status(row["phone"])
+            vendor_phone = row["vendor_phone"]
+            sub      = get_subscription_status(vendor_phone)
             is_trial = sub.get("status") == "trial"
             can_notify = True
 
@@ -113,7 +114,7 @@ def process_customer_notifications():
                 if notif_count >= TRIAL_CUSTOMER_NOTIFY_LIMIT:
                     can_notify = False
                     send_whatsapp_message(
-                        row["phone"],
+                        vendor_phone,
                         f"📢 *Trial limit reached*\n\n"
                         f"You've used all {TRIAL_CUSTOMER_NOTIFY_LIMIT} free customer notifications.\n"
                         f"*{row.get('customer') or 'Your customer'}* did not receive a reminder.\n\n"
@@ -121,7 +122,7 @@ def process_customer_notifications():
                         f"Reply *subscribe* to continue. 🚀",
                         show_help=False
                     )
-                    log(f"Trial limit — customer notify blocked for {row['phone'][:6]}***")
+                    log(f"Trial limit — customer notify blocked for {vendor_phone[:6]}***")
 
             if can_notify:
                 customer_msg = _build_customer_message(

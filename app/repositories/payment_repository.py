@@ -320,7 +320,7 @@ def get_pending_customer_notifications() -> list:
                 p.notify_customer,
                 r.task,
                 r.due_at,
-                r.phone,
+                p.user_id        AS vendor_phone,
                 u.business_name,
                 u.business_type
             FROM payments p
