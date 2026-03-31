@@ -120,20 +120,20 @@ def process_message(data: dict):
                 send_whatsapp_message(
                     phone,
                     "Hi! 👋 I'm Awesist — I help you run your business from WhatsApp.\n\n"
-                    "*Add an order or appointment:*\n"
-                    "_Just type it naturally and I'll set a reminder automatically_ ⏰\n\n"
+                    "Just tell me your order and I'll remind you automatically ⏰\n\n"
+                    "Try it now:\n"
                     "_Anjali cake 13th April 5pm_\n"
-                    "_Meena's bridal appointment tomorrow at 10am_\n\n"
-                    "*Check your orders:*\n"
-                    "• *reminders* → see all upcoming reminders\n"
-                    "• *unpaid* → see pending balances\n\n"
-                    "*Mark as collected:*\n"
-                    "• *paid Anjali*  or  *paid 1*\n\n"
-                    "*Track your income:*\n"
-                    "• *earnings* → this month's collections\n"
-                    "• *earnings last month* → previous month\n\n"
-                    "• *how* → see message examples\n"
-                    "• *help* → see all commands",
+                    "_Meena appointment tomorrow 11am_\n\n"
+                    "After saving you'll see:\n"
+                    "✅ Saved! Anjali cake\n"
+                    "📅 Due: 13 Apr 5:00 PM\n"
+                    "⏰ Reminder: 13 Apr 3:00 PM (2 hrs before)\n\n"
+                    "💡 Add a customer's number and I'll WhatsApp them too!\n\n"
+                    "• *reminders* → all upcoming orders\n"
+                    "• *unpaid* → pending payments\n"
+                    "• *earnings* → this month's income\n"
+                    "• *how* → more examples\n"
+                    "• *help* → all commands",
                     show_help=False
                 )
             return
