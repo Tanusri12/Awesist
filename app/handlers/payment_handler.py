@@ -204,13 +204,12 @@ def handle_earnings(user_id: str, phone: str, text: str):
     data  = get_monthly_earnings(user_id, year, month)
 
     if data["total"] == 0:
-        tip = (
-            "No payments collected in *" + label + "* yet.\n\n"
-            "💡 When a customer pays, send *unpaid* to see your pending list,\n"
-            "then reply with the number next to their name to mark it collected.\n\n"
-            "Your earnings will appear here once you start marking payments."
+        send_whatsapp_message(
+            phone,
+            f"📊 *Earnings — {label}*\n\n"
+            "Nothing collected yet.\n\n"
+            "To record a payment: send *unpaid* → then *paid <number>*"
         )
-        send_whatsapp_message(phone, "📊 *Earnings — " + label + "*\n\n" + tip)
         return
 
     avg = data["total"] / data["order_count"] if data["order_count"] else 0
