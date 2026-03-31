@@ -146,9 +146,29 @@ def _extract_month_from_text(text: str):
 
 def parse_day_of_month(text):
 
+    # Try with ordinal suffix: "12th April", "5th March"
     match = re.search(r'\b(\d{1,2})(st|nd|rd|th)\b', text)
 
+    # Also handle bare day + month name: "12 Apr", "5 March", "12 april"
     if not match:
+        month_pattern = '|'.join(_MONTH_NAMES.keys())
+        bare_match = re.search(
+            rf'\b(\d{{1,2}})\s+({month_pattern})\b', text, re.I
+        )
+        if bare_match:
+            day = int(bare_match.group(1))
+            month_name = bare_match.group(2).lower()[:3]
+            explicit_month = _MONTH_NAMES.get(month_name) or _MONTH_NAMES.get(bare_match.group(2).lower())
+            if explicit_month:
+                now = datetime.now()
+                year = now.year
+                try:
+                    dt = datetime(year, explicit_month, day)
+                    if dt < now:
+                        dt = datetime(year + 1, explicit_month, day)
+                    return {"date": dt.date().isoformat(), "time": None}
+                except ValueError:
+                    return None
         return None
 
     day = int(match.group(1))
