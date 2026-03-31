@@ -2,6 +2,7 @@ from datetime import datetime
 from repositories.user_repository import get_summary_users, mark_summary_sent
 from repositories.reminder_repository import get_today_reminders, get_user_reminders
 from whatsapp import send_whatsapp_message
+from worker.nudge_worker import run_nudge_worker
 
 
 def log(msg: str):
@@ -62,3 +63,10 @@ def run_morning_summary():
             log(f"Error for {user_id}: {e}")
 
     log(f"Done — sent: {sent}, skipped: {skipped}")
+
+    # Run nudge worker daily after morning summary
+    try:
+        nudges_sent = run_nudge_worker()
+        log(f"Nudge worker done — {nudges_sent} nudges sent")
+    except Exception as e:
+        log(f"Nudge worker error: {e}")
