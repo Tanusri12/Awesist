@@ -10,45 +10,33 @@ def handle_command(phone: str, text: str, user: dict = None) -> bool:
     if msg in ["help", "menu", "commands", "?"]:
         send_whatsapp_message(
             phone,
-            "🤖 *Awesist Commands*\n\n"
-            "*Add an order or appointment:*\n"
-            "_Just type it naturally — date, time, customer number, amount_\n\n"
-            "📋 *reminders* → see your reminders\n"
-            "💰 *unpaid* → see pending balances\n"
-            "✅ *paid <number or name>* → mark collected\n"
-            "✅ *paid all* → clear all balances\n"
+            "🤖 *Awesist — Commands*\n\n"
+            "📋 *reminders* → upcoming orders\n"
+            "💰 *unpaid* → pending balances\n"
+            "✅ *paid <name or number>* → mark collected\n"
             "📊 *earnings* → this month's income\n"
-            "📊 *earnings last month* → previous month\n"
-            "💳 *track <name> total <amt> advance <amt>* → track payment (no reminder)\n"
-            "❌ *delete <number>* → delete a reminder\n"
+            "💳 *track <name> total <amt>* → payment only\n"
+            "❌ *delete <number>* → remove a reminder\n"
             "🚫 *cancel* → cancel current action\n\n"
-            "Reply *how* to see message examples"
+            "_Reply *how* to see message examples_",
+            show_help=False
         )
         return True
 
     if msg in ["how", "example", "examples", "format", "how to"]:
         send_whatsapp_message(
             phone,
-            "💡 *How to add orders — examples*\n\n"
-            "*Minimal (just date required):*\n"
-            "_Anjali cake 13th April 5pm_\n\n"
-            "*With customer notification:*\n"
-            "_Anjali cake 13th April 5pm 9876543210_\n"
-            "_(I'll WhatsApp Anjali when the order is due)_\n\n"
-            "*With payment tracking:*\n"
-            "_Anjali cake 13th April 5pm total 1200 advance 300_\n\n"
-            "*Full — everything in one message:*\n"
-            "_Send chocolate cake to Anjali on 13th April at 5pm. "
-            "Her number is 9876543210. Total Rs 1200, she paid Rs 300 advance._\n\n"
-            "*Custom reminder time:*\n"
-            "_Anjali cake 13th April 5pm remind day before_\n"
-            "_Rahul order 20th April 6pm remind 9am_\n"
-            "_Meena appointment tomorrow 11am remind 1 hr before_\n\n"
-            "*Payment only (no reminder):*\n"
-            "_track Anjali total 1200 advance 300_\n"
-            "_track Rahul total 800_\n\n"
-            "📅 I understand: today, tomorrow, next Monday, 13th April, 5pm, evening…\n"
-            "🌐 I currently understand English only."
+            "💡 *How to add orders*\n\n"
+            "_Anjali cake 13th April 5pm_\n"
+            "_Anjali cake 13th April 5pm 9876543210_ ← notify customer\n"
+            "_Anjali cake 13th April 5pm total 1200 advance 300_ ← track payment\n"
+            "_Anjali cake 13th April 5pm remind day before_ ← custom reminder\n\n"
+            "*Payment only (no date needed):*\n"
+            "_track Anjali total 1200 advance 300_\n\n"
+            "📅 Dates: today, tomorrow, next Monday, 13th April…\n"
+            "🌐 English only.\n\n"
+            "_Reply *help* for all commands_",
+            show_help=False
         )
         return True
 
