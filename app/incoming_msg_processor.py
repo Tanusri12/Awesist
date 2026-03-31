@@ -69,6 +69,13 @@ def process_message(data: dict):
             return
 
         phone, text, message_id = msg_data
+
+        # Normalise copy-pasted text — replace non-breaking spaces and other
+        # unicode whitespace variants with regular spaces, then collapse runs.
+        import unicodedata, re as _re
+        text = unicodedata.normalize("NFKC", text)
+        text = _re.sub(r"[^\S\n]+", " ", text).strip()
+
         print(f"MSG from {phone}: {text}")
 
         # Mark as read immediately — sender sees blue ticks
