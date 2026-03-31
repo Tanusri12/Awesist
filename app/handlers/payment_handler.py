@@ -207,7 +207,7 @@ def handle_earnings(user_id: str, phone: str, text: str):
         send_whatsapp_message(
             phone,
             f"📊 *Earnings — {label}*\n\n"
-            "Nothing collected yet.\n\n"
+            f"No payments collected in {label}.\n\n"
             "To record a payment: send *unpaid* → then *paid <number>*"
         )
         return
