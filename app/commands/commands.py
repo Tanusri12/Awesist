@@ -17,6 +17,8 @@ def handle_command(phone: str, text: str, user: dict = None) -> bool:
             "💰 *unpaid* → see pending balances\n"
             "✅ *paid <number or name>* → mark collected\n"
             "✅ *paid all* → clear all balances\n"
+            "📊 *earnings* → this month's income\n"
+            "📊 *earnings last month* → previous month\n"
             "❌ *delete <number>* → delete a reminder\n"
             "🚫 *cancel* → cancel current action\n\n"
             "Reply *how* to see message examples",
