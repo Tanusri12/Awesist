@@ -149,12 +149,14 @@ def handle_track_payment(user_id: str, phone: str, text: str):
             f"💰 Total: ₹{total:.0f}\n"
             f"✅ Advance: ₹{advance:.0f}\n"
             f"⏳ Balance due: *₹{balance:.0f}*\n\n"
-            "When collected, send *unpaid* → then *paid <number>*"
+            "When collected:\n"
+            "1️⃣ Send *unpaid* to see your list\n"
+            "2️⃣ Send *paid 1* (or the number next to their name)"
         )
     else:
         msg = (
             f"✅ *{customer}* — fully paid! ₹{total:.0f} recorded.\n\n"
-            "See earnings with *earnings*"
+            "Reply *earnings* to see this month's collections."
         )
 
     send_whatsapp_message(phone, msg)
