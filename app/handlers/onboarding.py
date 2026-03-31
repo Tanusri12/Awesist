@@ -13,7 +13,7 @@ def handle_onboarding(phone: str, text: str, user_cache: dict):
         set_state(phone, {"step": "awaiting_business_name"})
         send_whatsapp_message(
             phone,
-            "Hi! I'm Awesist — I make sure you never forget an order or appointment. 👋\n\n"
+            "Hi! 👋 I'm Awesist — I help you run your business from WhatsApp.\n\n"
             "What's your business name?",
             show_help=False
         )

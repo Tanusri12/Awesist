@@ -119,12 +119,13 @@ def process_message(data: dict):
                 # No active state — show usage guide
                 send_whatsapp_message(
                     phone,
-                    "Hi! 👋 Here's how to use Awesist:\n\n"
-                    "*Save an order or appointment:*\n"
-                    "_Send cake to Priya on 13th April at 6pm_\n"
+                    "Hi! 👋 I'm Awesist — I help you run your business from WhatsApp.\n\n"
+                    "*Add an order or appointment:*\n"
+                    "_Just type it naturally and I'll set a reminder automatically_ ⏰\n\n"
+                    "_Priya cake 13th April 5pm_\n"
                     "_Meena's bridal appointment tomorrow at 10am_\n\n"
                     "*Check your orders:*\n"
-                    "• *reminders* → see all upcoming\n"
+                    "• *reminders* → see all upcoming reminders\n"
                     "• *unpaid* → see pending balances\n\n"
                     "*Mark as collected:*\n"
                     "• *paid Priya*  or  *paid 1*\n\n"
