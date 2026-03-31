@@ -13,7 +13,7 @@ from handlers.onboarding import handle_onboarding
 from handlers.reminder_handler import handle_create_reminder, handle_reminder_state
 from handlers.payment_handler import handle_unpaid, handle_mark_paid, handle_earnings, handle_track_payment, handle_remove_payment
 from handlers.list_handler import handle_list_reminders, handle_delete_reminder
-from whatsapp import send_whatsapp_message
+from whatsapp import send_whatsapp_message, mark_message_read
 
 USER_CACHE = {}
 EXPIRY_MSG_SENT = {}   # phone -> datetime of last expiry message (rate-limit to 1/hour)
@@ -55,20 +55,24 @@ def extract_message(data: dict):
         message = value["messages"][0]
         if message.get("type") != "text":
             return None
-        return message["from"], message["text"]["body"].strip()
+        return message["from"], message["text"]["body"].strip(), message["id"]
     except Exception as e:
         print("MESSAGE PARSE ERROR:", e)
         return None
 
 
 def process_message(data: dict):
+    phone = None
     try:
         msg_data = extract_message(data)
         if not msg_data:
             return
 
-        phone, text = msg_data
+        phone, text, message_id = msg_data
         print(f"MSG from {phone}: {text}")
+
+        # Mark as read immediately — sender sees blue ticks
+        mark_message_read(message_id)
         text_lower = text.lower().strip()
 
         # ── Language gate — English only ───────────────────────────────────
@@ -157,6 +161,15 @@ def process_message(data: dict):
 
     except Exception as e:
         print("PROCESS ERROR:", e)
+        if phone:
+            try:
+                send_whatsapp_message(
+                    phone,
+                    "⚠️ Something went wrong on my end. Please try again in a moment.",
+                    show_help=False,
+                )
+            except Exception:
+                pass
 
 
 # ─────────────────────────────────────────────────────────────────────────────

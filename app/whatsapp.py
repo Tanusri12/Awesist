@@ -2,6 +2,30 @@ import requests
 from config import WHATSAPP_TOKEN, PHONE_NUMBER_ID
 
 
+def mark_message_read(message_id: str):
+    """
+    Mark a received message as read so the sender sees blue ticks immediately.
+    This gives instant confirmation the bot received their message.
+    """
+    try:
+        url = f"https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages"
+        requests.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {WHATSAPP_TOKEN}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "messaging_product": "whatsapp",
+                "status": "read",
+                "message_id": message_id,
+            },
+            timeout=5,
+        )
+    except Exception as e:
+        print(f"MARK READ ERROR: {e}")
+
+
 def send_whatsapp_message(phone_number: str, message: str, show_help: bool = True) -> bool:
     if show_help:
         message = f"{message}\n\n_Reply *how* for examples  ·  *help* for all commands_"
