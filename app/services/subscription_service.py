@@ -152,7 +152,7 @@ def _subscription_confirmed_msg(name: str) -> str:
         "Your Awesist subscription is active for the next *30 days*.\n\n"
         "*Here's what you can do right now:*\n"
         "📝 *Add an order* — just type it naturally\n"
-        "   _Priya cake 15th April 5pm_\n\n"
+        "   _Anjali cake 15th April 5pm_\n\n"
         "📋 *reminders* — see all upcoming orders\n"
         "💰 *unpaid* — check pending balances\n"
         "📈 *earnings* — see this month's collections\n\n"

@@ -77,7 +77,7 @@ def process_message(data: dict):
                 phone,
                 "Sorry, I currently only understand English. 🙏\n\n"
                 "Please send your message in English — for example:\n"
-                "_Priya cake 13th April 5pm_",
+                "_Anjali cake 13th April 5pm_",
                 show_help=False
             )
             return
@@ -122,13 +122,13 @@ def process_message(data: dict):
                     "Hi! 👋 I'm Awesist — I help you run your business from WhatsApp.\n\n"
                     "*Add an order or appointment:*\n"
                     "_Just type it naturally and I'll set a reminder automatically_ ⏰\n\n"
-                    "_Priya cake 13th April 5pm_\n"
+                    "_Anjali cake 13th April 5pm_\n"
                     "_Meena's bridal appointment tomorrow at 10am_\n\n"
                     "*Check your orders:*\n"
                     "• *reminders* → see all upcoming reminders\n"
                     "• *unpaid* → see pending balances\n\n"
                     "*Mark as collected:*\n"
-                    "• *paid Priya*  or  *paid 1*\n\n"
+                    "• *paid Anjali*  or  *paid 1*\n\n"
                     "*Track your income:*\n"
                     "• *earnings* → this month's collections\n"
                     "• *earnings last month* → previous month\n\n"
@@ -378,7 +378,7 @@ def handle_expired_state(phone: str, text: str, state: dict, user: dict):
             phone,
             "No problem! Starting fresh. 👍\n\n"
             "Just tell me what you want to remember:\n\n"
-            "• _Send cake to Priya on 13th April at 6pm_",
+            "• _Send cake to Anjali on 13th April at 6pm_",
             show_help=False
         )
         return
@@ -442,7 +442,7 @@ def route_intent(user_id: str, phone: str, text: str):
             phone,
             "🤔 I didn't quite get that.\n\n"
             "Try something like:\n"
-            "• _Send cake to Priya on 13th April at 6pm_\n"
+            "• _Send cake to Anjali on 13th April at 6pm_\n"
             "• *reminders* → see your list\n"
             "• *unpaid* → see pending balances\n"
             "• *earnings* → this month's income\n"

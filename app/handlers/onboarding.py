@@ -58,7 +58,7 @@ def handle_onboarding(phone: str, text: str, user_cache: dict):
 
 def _onboarding_example(business_type: str) -> str:
     examples = {
-        "baker":       "Send chocolate cake to Priya on 13th April at 5pm. "
+        "baker":       "Send chocolate cake to Anjali on 13th April at 5pm. "
                        "Her number is 9876543210. Total Rs 1200, she paid Rs 300 advance.",
         "salon":       "Meena's bridal appointment on 20th April at 11am. "
                        "Her number 9876543210. Charge Rs 2500, advance Rs 500 received.",
@@ -66,7 +66,7 @@ def _onboarding_example(business_type: str) -> str:
                        "His number 9876543210. Total Rs 3500, advance Rs 1000 paid.",
         "tiffin":      "Sharma ji monthly tiffin starts 1st May. "
                        "His number 9876543210. Total Rs 1800, advance Rs 900 diya.",
-        "photography": "Priya pre-wedding shoot 15th April at 9am. "
+        "photography": "Anjali pre-wedding shoot 15th April at 9am. "
                        "Her number 9876543210. Total Rs 8000, advance Rs 3000 received.",
     }
     return examples.get(

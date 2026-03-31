@@ -31,15 +31,19 @@ def handle_command(phone: str, text: str, user: dict = None) -> bool:
             phone,
             "💡 *How to add orders — examples*\n\n"
             "*Minimal (just date required):*\n"
-            "_Priya cake 13th April 5pm_\n\n"
+            "_Anjali cake 13th April 5pm_\n\n"
             "*With customer notification:*\n"
-            "_Priya cake 13th April 5pm 9876543210_\n"
-            "_(I'll WhatsApp Priya when the order is due)_\n\n"
+            "_Anjali cake 13th April 5pm 9876543210_\n"
+            "_(I'll WhatsApp Anjali when the order is due)_\n\n"
             "*With payment tracking:*\n"
-            "_Priya cake 13th April 5pm total 1200 advance 300_\n\n"
+            "_Anjali cake 13th April 5pm total 1200 advance 300_\n\n"
             "*Full — everything in one message:*\n"
-            "_Send chocolate cake to Priya on 13th April at 5pm. "
+            "_Send chocolate cake to Anjali on 13th April at 5pm. "
             "Her number is 9876543210. Total Rs 1200, she paid Rs 300 advance._\n\n"
+            "*Custom reminder time:*\n"
+            "_Anjali cake 13th April 5pm remind day before_\n"
+            "_Rahul order 20th April 6pm remind 9am_\n"
+            "_Meena appointment tomorrow 11am remind 1 hr before_\n\n"
             "📅 I understand: today, tomorrow, next Monday, 13th April, 5pm, evening…\n"
             "💬 Hindi/Hinglish also works!",
             show_help=False
@@ -58,7 +62,7 @@ def handle_command(phone: str, text: str, user: dict = None) -> bool:
             send_whatsapp_message(
                 phone,
                 "📭 You don't have any reminders yet.\n\n"
-                "Try: _Send cake to Priya on 13th April at 6pm_"
+                "Try: _Send cake to Anjali on 13th April at 6pm_"
             )
             return True
         message = "📋 *Your reminders*\n\n"

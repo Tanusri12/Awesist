@@ -34,6 +34,7 @@ def _local_extract(text: str) -> dict:
 
         dt             = extract_datetime(text)
         payment_fields = _extract_payment_fields(text)
+        reminder_offset = _extract_reminder_offset(text)
 
         # Strip phone numbers and payment keywords from text before task extraction
         clean_text = _strip_payment_tokens(text, payment_fields)
@@ -54,10 +55,63 @@ def _local_extract(text: str) -> dict:
 
         result = {"task": task, "date": date, "time": time, "confidence": confidence}
         result.update(payment_fields)
+        if reminder_offset:
+            result["reminder_offset"] = reminder_offset
         return result
     except Exception as e:
         print("Local extraction error:", e)
         return {"task": text.strip(), "date": None, "time": None, "confidence": "low"}
+
+
+def _extract_reminder_offset(text: str):
+    """
+    Extract a custom reminder offset from phrases like:
+      "remind day before", "remind 1 day before", "remind morning",
+      "remind 9am", "remind at 10am", "remind 2 hrs before", "remind 1 hr before"
+
+    Returns one of: "day_before", "morning", "2hr", "1hr", "HH:MM", or None.
+    """
+    import re
+
+    t = text.lower()
+
+    # Must contain the word "remind" to trigger offset parsing
+    if "remind" not in t:
+        return None
+
+    # "day before" / "1 day before" / "tomorrow" style
+    if re.search(r'remind\w*\s+(?:\d+\s+)?day\s+before', t):
+        return "day_before"
+
+    # "morning" (same day 8am)
+    if re.search(r'remind\w*\s+(?:in\s+the\s+)?morning', t):
+        return "morning"
+
+    # "2 hrs/hours before"
+    if re.search(r'remind\w*\s+2\s*hr(?:s|ours?)?\s+before', t):
+        return "2hr"
+
+    # "1 hr/hour before"
+    if re.search(r'remind\w*\s+1\s*hr(?:s|ours?)?\s+before', t):
+        return "1hr"
+
+    # Specific time like "remind 9am", "remind at 10:30am", "remind 9:00"
+    time_match = re.search(
+        r'remind\w*\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?',
+        t
+    )
+    if time_match:
+        hour   = int(time_match.group(1))
+        minute = int(time_match.group(2) or 0)
+        ampm   = time_match.group(3)
+        if ampm == "pm" and hour != 12:
+            hour += 12
+        elif ampm == "am" and hour == 12:
+            hour = 0
+        if 0 <= hour <= 23 and 0 <= minute <= 59:
+            return f"{hour:02d}:{minute:02d}"
+
+    return None
 
 
 def _strip_payment_tokens(text: str, payment_fields: dict) -> str:
@@ -170,6 +224,13 @@ Fields:
 - total: total order amount as a number (or null)
 - advance: advance/deposit already paid as a number (or null)
 - confidence: "high" if clearly understood, "low" if guessing
+- reminder_offset: if the message contains a "remind ..." phrase, return one of:
+    "day_before" (for "remind day before", "remind 1 day before"),
+    "morning" (for "remind morning" — 8am same day),
+    "2hr" (for "remind 2 hrs before"),
+    "1hr" (for "remind 1 hr before"),
+    or a time string like "09:00" for "remind 9am" / "remind at 10am".
+    Return null if no remind phrase is present.
 
 Message:
 {message_text}"""

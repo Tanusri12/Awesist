@@ -36,7 +36,7 @@ def handle_unpaid(user_id: str, phone: str):
 def handle_mark_paid(user_id: str, phone: str, text: str):
     parts = text.strip().split(None, 1)
     if len(parts) < 2:
-        send_whatsapp_message(phone, "⚠️ Send: *paid 2*  or  *paid Priya*")
+        send_whatsapp_message(phone, "⚠️ Send: *paid 2*  or  *paid Anjali*")
         return
     arg = parts[1].strip().lower()
 

@@ -41,7 +41,7 @@ def handle_create_reminder(user_id: str, phone: str, text: str):
             phone,
             "💡 Just tell me the order details directly — no need for commands!\n\n"
             "*Examples:*\n"
-            "_Priya cake 13th April 5pm_\n"
+            "_Anjali cake 13th April 5pm_\n"
             "_Meena blouse stitching 20th April at 11am total 800_\n\n"
             "Type *how* to see more examples.",
             show_help=False
@@ -56,6 +56,7 @@ def handle_create_reminder(user_id: str, phone: str, text: str):
     customer_phone = extracted.get("customer_phone")
     total          = extracted.get("total")
     advance        = extracted.get("advance")
+    reminder_offset = extracted.get("reminder_offset")
 
     # ── No date at all → send fill-in template ──────────────────────────
     if not due_date and not due_time:
@@ -73,7 +74,7 @@ def handle_create_reminder(user_id: str, phone: str, text: str):
 
     _fast_path_with_date(
         user_id, phone, task, due_date, due_time, due_dt, due_display,
-        customer_phone, total, advance
+        customer_phone, total, advance, reminder_offset=reminder_offset
     )
 
 
@@ -98,6 +99,44 @@ def _default_reminder_time(due_dt: datetime):
     return now + timedelta(seconds=30)
 
 
+def _apply_reminder_offset(due_dt: datetime, offset: str):
+    """Calculate reminder time from a named offset."""
+    if not due_dt or not offset:
+        return None
+    if offset == "day_before":
+        return (due_dt - timedelta(days=1)).replace(hour=9, minute=0, second=0)
+    if offset == "morning":
+        return due_dt.replace(hour=8, minute=0, second=0)
+    if offset == "2hr":
+        return due_dt - timedelta(hours=2)
+    if offset == "1hr":
+        return due_dt - timedelta(hours=1)
+    # Specific time like "09:00"
+    if ":" in offset:
+        try:
+            h, m = offset.split(":")
+            return due_dt.replace(hour=int(h), minute=int(m), second=0)
+        except Exception:
+            pass
+    return None
+
+
+def _reminder_label(offset: str) -> str:
+    """Return a human-readable label for a reminder offset."""
+    if not offset:
+        return "_(2 hrs before)_"
+    if offset == "day_before":
+        return "_(day before)_"
+    if offset == "morning":
+        return "_(morning of due date)_"
+    if offset == "2hr":
+        return "_(2 hrs before)_"
+    if offset == "1hr":
+        return "_(1 hr before)_"
+    # Specific time like "09:00" — no parenthetical label needed
+    return ""
+
+
 def _build_due_datetime(due_date: str, due_time: str) -> datetime:
     """Combine YYYY-MM-DD date and HH:MM time into a datetime."""
     try:
@@ -110,11 +149,12 @@ def _fast_path_with_date(
     user_id: str, phone: str, task: str,
     due_date: str, due_time: str, due_dt,
     due_display: str,
-    customer_phone, total, advance
+    customer_phone, total, advance,
+    reminder_offset=None
 ):
     """
     Called once we know due_date + due_time.
-    Saves the reminder with a default 2-hr reminder, then:
+    Saves the reminder with a default 2-hr reminder (or custom offset), then:
       - if total is known  → save payment and send complete confirmation (done)
       - if phone but no total → jump to awaiting_payment (1 question left)
       - if nothing extra   → save and confirm (done)
@@ -127,13 +167,22 @@ def _fast_path_with_date(
             phone,
             "⚠️ Due date is too soon — please set it at least 30 minutes in the future.\n\n"
             "Try a proper date like:\n"
-            "_Priya cake tomorrow at 5pm_\n"
+            "_Anjali cake tomorrow at 5pm_\n"
             "_Meena appointment 20th April at 11am_",
             show_help=False
         )
         return
 
-    reminder_dt = _default_reminder_time(due_dt)
+    # ── Compute reminder time (custom offset or default 2hr) ─────────────
+    if reminder_offset:
+        reminder_dt = _apply_reminder_offset(due_dt, reminder_offset)
+        if not reminder_dt:
+            # Unrecognised offset — fall back to default
+            reminder_dt = _default_reminder_time(due_dt)
+            reminder_offset = None
+    else:
+        reminder_dt = _default_reminder_time(due_dt)
+
     if not reminder_dt:
         # Edge case: couldn't compute default — ask manually
         set_state(phone, {
@@ -205,12 +254,14 @@ def _fast_path_with_date(
 
     # ── Nothing extra → save and done ────────────────────────────────
     set_state(phone, {"step": "just_saved", "reminder_id": reminder_id})
+    label = _reminder_label(reminder_offset)
+    label_str = f" {label}" if label else ""
     send_whatsapp_message(
         phone,
         f"✅ *Saved!*\n\n"
         f"📝 {task}\n"
         f"📅 Due: {due_display}\n"
-        f"⏰ Reminder: {reminder_display} _(2 hrs before)_\n\n"
+        f"⏰ Reminder: {reminder_display}{label_str}\n\n"
         f"Reply *unpaid* to track payments  ·  *reminders* to see all  ·  *edit* to update this"
     )
 
@@ -236,7 +287,7 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
         phone,
         "✏️ *Update reminder*\n\n"
         "Send the corrected details — just like you normally would:\n\n"
-        "_Priya cake 15th April 6pm_\n"
+        "_Anjali cake 15th April 6pm_\n"
         "_Meena appointment 20th April at 11am total 2500 advance 500_\n\n"
         "I'll update the saved reminder.",
         show_help=False
@@ -258,7 +309,7 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
         send_whatsapp_message(
             phone,
             "⚠️ I couldn't find a date in that message.\n\n"
-            "Please include a date, e.g. _Priya cake 15th April 6pm_"
+            "Please include a date, e.g. _Anjali cake 15th April 6pm_"
         )
         return True
 
@@ -411,6 +462,7 @@ def _handle_awaiting_template(user_id: str, phone: str, text: str, state: dict) 
     extracted = extract_reminder_details(text, phone)
     due_date  = extracted.get("date")
     due_time  = extracted.get("time")
+    reminder_offset = extracted.get("reminder_offset")
 
     if not due_date and not due_time:
         # Still nothing — resend the template
@@ -430,7 +482,7 @@ def _handle_awaiting_template(user_id: str, phone: str, text: str, state: dict) 
     due_display = due_dt.strftime('%d %b %Y %I:%M %p') if due_dt else f"{due_date} {due_time}"
     _fast_path_with_date(
         user_id, phone, saved_task, due_date, due_time, due_dt, due_display,
-        customer_phone, total, advance
+        customer_phone, total, advance, reminder_offset=reminder_offset
     )
     return True
 
@@ -454,6 +506,7 @@ def _handle_awaiting_time(user_id: str, phone: str, text: str, state: dict) -> b
     due_date  = extracted.get("date")
     due_time  = extracted.get("time")
     task      = state.get("task")
+    reminder_offset = extracted.get("reminder_offset")
 
     if not due_date and not due_time:
         send_whatsapp_message(
@@ -480,7 +533,7 @@ def _handle_awaiting_time(user_id: str, phone: str, text: str, state: dict) -> b
     # by rebuilding a synthetic "extracted" dict and delegating
     _fast_path_with_date(
         user_id, phone, task, due_date, due_time, due_dt, due_display,
-        customer_phone, total, advance
+        customer_phone, total, advance, reminder_offset=reminder_offset
     )
     return True
 

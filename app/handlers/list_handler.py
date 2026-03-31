@@ -9,7 +9,7 @@ def handle_list_reminders(user_id: str, phone: str):
         send_whatsapp_message(
             phone,
             "📭 You don't have any reminders yet.\n\n"
-            "Try: _Send cake to Priya on 13th April at 6pm_"
+            "Try: _Send cake to Anjali on 13th April at 6pm_"
         )
         return
     message = "📋 *Your reminders:*\n\n"
