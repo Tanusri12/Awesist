@@ -62,20 +62,24 @@ def process_reminders():
     log(f"{len(reminders)} reminder(s) due")
     for r in reminders:
         try:
-            message = f"⏰ *Reminder*\n\n{r['task']}"
+            task_title = r["task"].title() if r["task"] else "Order"
+            message = f"⏰ *{task_title}*"
 
-            # Show due time if available
+            # Due time
             if r.get("due_at"):
                 due = r["due_at"]
                 if isinstance(due, str):
                     due = datetime.fromisoformat(due)
-                message += f"\n📅 Due: {due.strftime('%d %b %Y %I:%M %p')}"
+                message += f"\n📅 Due: {due.strftime('%d %b, %I:%M %p')}"
 
-            # Show balance if outstanding
+            # Payment info
             payment = get_payment_for_reminder(r["id"])
-            if payment and float(payment["balance"]) > 0:
-                message += f"\n💰 Balance pending: Rs.{float(payment['balance']):.0f}"
-                message += f"\n\nReply *paid {payment['customer'] or r['task'][:15]}* when collected."
+            if payment:
+                if payment.get("customer_phone"):
+                    message += f"\n📲 {str(payment['customer_phone'])[-10:]}"
+                if float(payment.get("balance") or 0) > 0:
+                    message += f"\n💰 Rs.{float(payment['balance']):.0f} balance pending"
+                    message += f"\n\nReply *unpaid* → mark as collected"
 
             send_whatsapp_message(r["phone"], message, show_help=False)
 
