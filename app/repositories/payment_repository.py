@@ -31,17 +31,19 @@ def create_payment_only(user_id: str, customer: str, total: float, advance: floa
         release_connection(conn)
 
 
-def create_payment(user_id: str, reminder_id: int, customer: str, total: float, advance: float, customer_phone: str = None, notify_customer: bool = True):
+def create_payment(user_id: str, reminder_id: int, customer: str, total: float, advance: float,
+                   customer_phone: str = None, notify_customer: bool = True, customer_notify_at=None):
     conn = get_connection()
     try:
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT INTO payments (user_id, reminder_id, customer, total, advance, status, customer_phone, notify_customer)
-            VALUES (%s, %s, %s, %s, %s, 'pending', %s, %s)
+            INSERT INTO payments (user_id, reminder_id, customer, total, advance, status,
+                                  customer_phone, notify_customer, customer_notify_at)
+            VALUES (%s, %s, %s, %s, %s, 'pending', %s, %s, %s)
             RETURNING id
             """,
-            (user_id, reminder_id, customer, total, advance, customer_phone, notify_customer)
+            (user_id, reminder_id, customer, total, advance, customer_phone, notify_customer, customer_notify_at)
         )
         result = cursor.fetchone()
         conn.commit()
@@ -292,6 +294,68 @@ def get_monthly_earnings(user_id: str, year: int, month: int) -> dict:
             "order_count": order_count,
             "customers":   [dict(r) for r in rows],
         }
+    finally:
+        cursor.close()
+        release_connection(conn)
+
+
+def get_pending_customer_notifications() -> list:
+    """
+    Find all payments where customer_notify_at is due and not yet sent.
+    Returns rows with enough context for the worker to send the message.
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute(
+            """
+            SELECT
+                p.id             AS payment_id,
+                p.user_id,
+                p.customer,
+                p.customer_phone,
+                p.total,
+                p.advance,
+                ROUND(p.total - p.advance, 2) AS balance,
+                p.notify_customer,
+                r.task,
+                r.due_at,
+                r.phone,
+                u.business_name,
+                u.business_type
+            FROM payments p
+            JOIN reminders r ON r.id = p.reminder_id
+            JOIN users u     ON u.id = p.user_id
+            WHERE p.notify_customer = TRUE
+              AND p.customer_notified = FALSE
+              AND p.customer_phone IS NOT NULL
+              AND p.customer_notify_at IS NOT NULL
+              AND p.customer_notify_at <= NOW()
+              AND p.status = 'pending'
+            """
+        )
+        return cursor.fetchall()
+    except Exception as e:
+        print("ERROR get_pending_customer_notifications:", e)
+        return []
+    finally:
+        cursor.close()
+        release_connection(conn)
+
+
+def mark_customer_notified(payment_id: int):
+    """Mark a payment's customer notification as sent."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE payments SET customer_notified = TRUE WHERE id = %s",
+            (payment_id,)
+        )
+        conn.commit()
+    except Exception as e:
+        print("ERROR mark_customer_notified:", e)
+        conn.rollback()
     finally:
         cursor.close()
         release_connection(conn)

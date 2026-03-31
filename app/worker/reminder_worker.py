@@ -6,7 +6,11 @@ from repositories.reminder_repository import (
     mark_reminder_sent,
     mark_reminder_failed
 )
-from repositories.payment_repository import get_payment_for_reminder
+from repositories.payment_repository import (
+    get_payment_for_reminder,
+    get_pending_customer_notifications,
+    mark_customer_notified,
+)
 from worker.morning_summary_worker import run_morning_summary
 from whatsapp import send_whatsapp_message
 from config import REMINDER_POLL_INTERVAL, MORNING_SUMMARY_HOUR
@@ -75,44 +79,6 @@ def process_reminders():
 
             send_whatsapp_message(r["phone"], message, show_help=False)
 
-            # Notify customer if opted in
-            if payment and payment.get("customer_phone") and payment.get("notify_customer", True):
-                try:
-                    from repositories.user_repository import get_subscription_status
-                    from repositories.payment_repository import get_customer_notification_count
-
-                    sub = get_subscription_status(r["phone"])
-                    is_trial = sub.get("status") == "trial"
-                    can_notify = True
-
-                    if is_trial:
-                        notif_count = get_customer_notification_count(r["user_id"])
-                        if notif_count >= TRIAL_CUSTOMER_NOTIFY_LIMIT:
-                            can_notify = False
-                            send_whatsapp_message(
-                                r["phone"],
-                                f"📢 *Trial limit reached*\n\n"
-                                f"You've used all {TRIAL_CUSTOMER_NOTIFY_LIMIT} free customer notifications.\n"
-                                f"*{payment.get('customer') or 'Your customer'}* did not receive a reminder.\n\n"
-                                f"Subscribe to *Pro (₹299/month)* to keep sending automatic alerts to customers.\n\n"
-                                f"Reply *subscribe* to continue. 🚀",
-                                show_help=False
-                            )
-                            log(f"Trial limit reached — customer notify blocked for {r['phone'][:6]}***")
-
-                    if can_notify:
-                        customer_msg = _build_customer_message(
-                            r["task"],
-                            r.get("due_at"),
-                            r.get("business_name", "your vendor"),
-                            r.get("business_type", "generic"),
-                            float(payment["balance"]) if payment.get("balance") else 0
-                        )
-                        send_whatsapp_message(payment["customer_phone"], customer_msg, show_help=False)
-                        log(f"Customer notified → {payment['customer_phone'][:6]}***")
-                except Exception as ce:
-                    log(f"Customer notify failed: {ce}")
-
             mark_reminder_sent(r["id"])
             log(f"Sent → {r['phone'][:6]}*** → {r['task'][:40]}")
         except Exception as e:
@@ -120,11 +86,65 @@ def process_reminders():
             mark_reminder_failed(r["id"])
 
 
+def process_customer_notifications():
+    """
+    Independently fire customer notifications based on customer_notify_at.
+    Completely decoupled from vendor reminder timing.
+    """
+    try:
+        rows = get_pending_customer_notifications()
+    except Exception as e:
+        log(f"DB error (customer notifications): {e}")
+        return
+    if not rows:
+        return
+    log(f"{len(rows)} customer notification(s) due")
+    for row in rows:
+        try:
+            from repositories.user_repository import get_subscription_status
+            from repositories.payment_repository import get_customer_notification_count
+
+            sub      = get_subscription_status(row["phone"])
+            is_trial = sub.get("status") == "trial"
+            can_notify = True
+
+            if is_trial:
+                notif_count = get_customer_notification_count(row["user_id"])
+                if notif_count >= TRIAL_CUSTOMER_NOTIFY_LIMIT:
+                    can_notify = False
+                    send_whatsapp_message(
+                        row["phone"],
+                        f"📢 *Trial limit reached*\n\n"
+                        f"You've used all {TRIAL_CUSTOMER_NOTIFY_LIMIT} free customer notifications.\n"
+                        f"*{row.get('customer') or 'Your customer'}* did not receive a reminder.\n\n"
+                        f"Subscribe to *Pro (₹299/month)* to keep sending automatic alerts to customers.\n\n"
+                        f"Reply *subscribe* to continue. 🚀",
+                        show_help=False
+                    )
+                    log(f"Trial limit — customer notify blocked for {row['phone'][:6]}***")
+
+            if can_notify:
+                customer_msg = _build_customer_message(
+                    row["task"],
+                    row.get("due_at"),
+                    row.get("business_name", "your vendor"),
+                    row.get("business_type", "generic"),
+                    float(row["balance"]) if row.get("balance") else 0
+                )
+                send_whatsapp_message(row["customer_phone"], customer_msg, show_help=False)
+                log(f"Customer notified → {row['customer_phone'][:6]}***")
+
+            mark_customer_notified(row["payment_id"])
+        except Exception as e:
+            log(f"Customer notify failed (payment {row.get('payment_id')}): {e}")
+
+
 def run_worker():
     log("Worker started — reminders every 30s, morning summary at 8 AM")
     while True:
         try:
             process_reminders()
+            process_customer_notifications()
             maybe_send_morning_summary()
         except Exception as e:
             log(f"Worker loop error: {e}")

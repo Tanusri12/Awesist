@@ -95,6 +95,23 @@ def _extract_reminder_offset(text: str):
     if re.search(r'remind\w*\s+1\s*hr(?:s|ours?)?\s+before', t):
         return "1hr"
 
+    # "remind on DATE at TIME" — specific date+time for reminder
+    # e.g. "remind on 12th April at 4pm", "remind 12 Apr 9am"
+    date_time_match = re.search(
+        r'remind\w*\s+(?:on\s+)?(\d{1,2}(?:st|nd|rd|th)?\s+\w+|\w+\s+\d{1,2}(?:st|nd|rd|th)?)'
+        r'(?:\s+at\s+|\s+)(\d{1,2})(?::(\d{2}))?\s*(am|pm)?',
+        t, re.I
+    )
+    if date_time_match:
+        try:
+            from parser.extractors.datetime_extractor import extract_datetime
+            remind_text = date_time_match.group(0).replace("remind", "").replace("on ", "").strip()
+            dt = extract_datetime(remind_text)
+            if dt.get("date") and dt.get("time"):
+                return f"abs:{dt['date']} {dt['time']}"
+        except Exception:
+            pass
+
     # Specific time like "remind 9am", "remind at 10:30am", "remind 9:00"
     time_match = re.search(
         r'remind\w*\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?',
@@ -115,7 +132,7 @@ def _extract_reminder_offset(text: str):
 
 
 def _strip_payment_tokens(text: str, payment_fields: dict) -> str:
-    """Remove phone numbers and payment keywords from text so the task stays clean."""
+    """Remove phone numbers, payment keywords, and remind phrases from text so the task stays clean."""
     import re
     t = text
 
@@ -123,6 +140,10 @@ def _strip_payment_tokens(text: str, payment_fields: dict) -> str:
     if payment_fields.get("customer_phone"):
         digits = payment_fields["customer_phone"][2:]   # strip leading "91"
         t = re.sub(r'(?:\+91|91)?' + re.escape(digits), '', t)
+
+    # Remove "remind ..." phrase — everything from "remind" to end of string
+    # Handles: "remind day before", "remind on 12th April at 4pm", "remind 1 hr before", etc.
+    t = re.sub(r'\bremind\b.*', '', t, flags=re.I)
 
     # Remove payment keyword phrases: "total 1200", "advance 300", "paid 300", etc.
     t = re.sub(
