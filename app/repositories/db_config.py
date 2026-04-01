@@ -11,7 +11,8 @@ if DATABASE_URL:
         "user":     parsed.username,
         "password": parsed.password,
         "port":     parsed.port or 5432,
-        "sslmode":  "require" if "supabase" in (parsed.hostname or "") or "neon" in (parsed.hostname or "") else "prefer"
+        "sslmode":  "require" if "supabase" in (parsed.hostname or "") or "neon" in (parsed.hostname or "") else "prefer",
+        "options":  "-c timezone=Asia/Kolkata"
     }
 else:
     DB_CONFIG = {
@@ -20,5 +21,6 @@ else:
         "user":     os.getenv("DB_USER",     "postgres"),
         "password": os.getenv("DB_PASSWORD", "postgres"),
         "port":     int(os.getenv("DB_PORT", 5432)),
-        "sslmode":  "prefer"
+        "sslmode":  "prefer",
+        "options":  "-c timezone=Asia/Kolkata"
     }
