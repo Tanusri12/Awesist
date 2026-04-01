@@ -131,11 +131,10 @@ def process_message(data: dict):
                 send_whatsapp_message(
                     phone,
                     "Hi! 👋\n\n"
-                    "Just save your bookings here — I will remind you automatically so you never miss one.\n\n"
-                    "*Save a booking like this:*\n"
+                    "Never forget a booking again — just send it to me and I'll remind you at the right time, automatically.\n\n"
                     "Anjali booking 13 Apr 5pm\n"
-                    "⏰ Reminder: 13 Apr 3:00 PM (2 hrs before)\n\n"
-                    "*Custom reminder time:*\n"
+                    "⏰ I'll remind you: 13 Apr 3:00 PM (2 hrs before)\n\n"
+                    "Want a specific reminder time? Just add it:\n"
                     "Anjali booking 13 Apr 5pm and set reminder on 13 Apr at 10am"
                 )
             return
