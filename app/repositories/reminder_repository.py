@@ -32,6 +32,28 @@ def create_reminder(user_id: str, task: str, reminder_time: datetime):
         release_connection(conn)
 
 
+def get_reminder_by_id(reminder_id: int, user_id: str) -> dict:
+    """Fetch a single reminder with its payment details for pre-filling the edit template."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute(
+            """
+            SELECT r.id, r.task, r.due_at, r.reminder_time,
+                   p.id AS payment_id, p.total, p.advance, p.customer_phone
+            FROM reminders r
+            LEFT JOIN payments p ON p.reminder_id = r.id
+            WHERE r.id = %s AND r.user_id = %s
+            """,
+            (reminder_id, user_id)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        cursor.close()
+        release_connection(conn)
+
+
 def fetch_and_lock_due_reminders(limit: int = 20):
     conn = get_connection()
     try:

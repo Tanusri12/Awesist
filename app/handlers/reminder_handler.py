@@ -320,14 +320,39 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
             clear_state(phone)
             send_whatsapp_message(phone, "⚠️ Nothing to edit. Please save a reminder first.")
             return True
+
+        # Fetch current values from DB and show a pre-filled copy-paste template
+        from repositories.reminder_repository import get_reminder_by_id
+        current = get_reminder_by_id(reminder_id, user_id)
+        if not current:
+            clear_state(phone)
+            send_whatsapp_message(phone, "⚠️ Could not find the reminder to edit.")
+            return True
+
+        # Format current due date/time for the template
+        due_at = current.get("due_at")
+        if due_at:
+            if isinstance(due_at, str):
+                from datetime import datetime as _dt
+                due_at = _dt.fromisoformat(due_at)
+            date_val = due_at.strftime("%-d %b %-I:%M %p").lower()  # e.g. "13 apr 6:00 pm"
+        else:
+            date_val = ""
+
+        task_val    = (current.get("task") or "").strip()
+        phone_val   = (current.get("customer_phone") or "")[-10:] if current.get("customer_phone") else ""
+        total_val   = str(int(current["total"])) if current.get("total") else ""
+        advance_val = str(int(current["advance"])) if current.get("advance") else ""
+
         set_state(phone, {"step": "awaiting_edit", "reminder_id": reminder_id})
         send_whatsapp_message(
             phone,
-            "✏️ *Update reminder*\n\n"
-            "Send the corrected details — just like you normally would:\n\n"
-            "_Anjali cake 15th April 6pm_\n"
-            "_Meena appointment 20th April at 11am total 2500 advance 500_\n\n"
-            "I'll update the saved reminder.",
+            f"✏️ *Update and send back:*\n\n"
+            f"Task: {task_val}\n"
+            f"Date: {date_val}\n"
+            f"Customer Phone: {phone_val}\n"
+            f"Total: {total_val}\n"
+            f"Advance: {advance_val}",
             show_help=False
         )
         return True
