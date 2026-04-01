@@ -322,12 +322,17 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
         )
         return True
 
-    # ── Skip / No ─────────────────────────────────────────────────────
+    # ── Skip payment → still ask about client notification ────────────
     if t in ("skip", "no", "nahi", "done"):
-        clear_state(phone)
+        set_state(phone, {
+            **state,
+            "step": "awaiting_payment_notify",
+            "payment_id": None,
+        })
         send_whatsapp_message(
             phone,
-            "Got it 👍  Reply *how* to see all examples  ·  *reminders* to see your orders",
+            "📲 Want to notify your client when the order is ready?\n"
+            "Reply their number e.g. _9876543210_\nor *skip*",
             show_help=False
         )
         return True
@@ -1042,7 +1047,8 @@ def _handle_awaiting_payment_notify(user_id: str, phone: str, text: str, state: 
     t = text.strip()
     if t.lower() in ("skip", "no", "nahi", "na", "done"):
         clear_state(phone)
-        send_whatsapp_message(phone, "Done 👍  Reply *unpaid* to see pending balances.", show_help=False)
+        msg = "Done 👍  Reply *unpaid* to see pending balances." if state.get("payment_id") else "Done 👍  Reply *reminders* to see your orders."
+        send_whatsapp_message(phone, msg, show_help=False)
         return True
 
     customer_phone = _parse_phone(t)
@@ -1109,8 +1115,18 @@ def _handle_awaiting_payment_notify_time(user_id: str, phone: str, text: str, st
         )
         return True
 
-    from repositories.payment_repository import update_payment_notify, get_payment_for_reminder
-    update_payment_notify(payment_id, customer_phone, notify_at)
+    from repositories.payment_repository import update_payment_notify, create_payment, get_payment_for_reminder
+    if payment_id:
+        update_payment_notify(payment_id, customer_phone, notify_at)
+    else:
+        # No payment record yet — create a minimal one just to store the notification
+        reminder_id = state.get("reminder_id")
+        customer    = _extract_customer(state.get("task", ""))
+        create_payment(
+            user_id=user_id, reminder_id=reminder_id, customer=customer,
+            total=0, advance=0, customer_phone=customer_phone,
+            notify_customer=True, customer_notify_at=notify_at
+        )
 
     # Build full summary
     due_display = ""
