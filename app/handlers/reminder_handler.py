@@ -59,6 +59,16 @@ def handle_create_reminder(user_id: str, phone: str, text: str):
     reminder_offset        = extracted.get("reminder_offset")
     customer_notify_option = extracted.get("customer_notify_option")
 
+    # ── Gibberish guard — task must have at least one real word ──────────
+    if not _is_real_task(task):
+        send_whatsapp_message(
+            phone,
+            "I couldn't understand that. Please describe your order clearly, e.g.\n\n"
+            "_Anjali cake 13 Apr 5pm_",
+            show_help=False
+        )
+        return
+
     # ── No date at all → send fill-in template ──────────────────────────
     if not due_date and not due_time:
         _send_template(phone, task, customer_phone, total, advance)
@@ -1168,6 +1178,18 @@ def _handle_awaiting_payment_notify_time(user_id: str, phone: str, text: str, st
 
 
 # --------------------------------------------------
+
+def _is_real_task(task: str) -> bool:
+    """
+    Return True if the task looks like real text.
+    Real words contain vowels — pure consonant strings are gibberish.
+    Requires at least one word of 3+ letters that has a vowel.
+    """
+    import re
+    words = re.findall(r'[a-zA-Z]{3,}', task)
+    vowels = set('aeiouAEIOU')
+    return any(any(c in vowels for c in w) for w in words)
+
 
 def _build_datetime(date_str: str, time_str: str):
     try:
