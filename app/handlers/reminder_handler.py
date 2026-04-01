@@ -290,7 +290,7 @@ def _fast_path_with_date(
         f"📝 {task}\n"
         f"📅 Due: {due_display}\n"
         f"⏰ Reminder: {reminder_display}{label_str}\n\n"
-        f"💰 Add payment details?\n"
+        f"💰 Want to track what's paid and what's still due?\n"
         f"_total 1200 advance 300_  ·  or *skip*"
     )
 
