@@ -1181,14 +1181,36 @@ def _handle_awaiting_payment_notify_time(user_id: str, phone: str, text: str, st
 
 def _is_real_task(task: str) -> bool:
     """
-    Return True if the task looks like real text.
-    Real words contain vowels — pure consonant strings are gibberish.
-    Requires at least one word of 3+ letters that has a vowel.
+    Return True if the task contains at least one real word.
+    Real words have:
+      - Max consecutive consonant run ≤ 4  (gibberish like "sjkjsnkj" has 10+)
+      - Vowel ratio ≥ 10%  (real English averages ~38%)
+    Vowels include 'y' to handle words like "rhythm", "gym".
     """
     import re
+    VOWELS = set('aeiouyAEIOUY')
+    CONSONANTS = set('bcdfghjklmnpqrstvwxzBCDFGHJKLMNPQRSTVWXZ')
+
     words = re.findall(r'[a-zA-Z]{3,}', task)
-    vowels = set('aeiouAEIOU')
-    return any(any(c in vowels for c in w) for w in words)
+    if not words:
+        return False
+
+    for word in words:
+        # Max consecutive consonant run
+        max_run = cur_run = 0
+        for ch in word:
+            if ch in CONSONANTS:
+                cur_run += 1
+                max_run = max(max_run, cur_run)
+            else:
+                cur_run = 0
+
+        vowel_ratio = sum(1 for ch in word if ch in VOWELS) / len(word)
+
+        if max_run <= 4 and vowel_ratio >= 0.10:
+            return True   # Found at least one real-looking word
+
+    return False
 
 
 def _build_datetime(date_str: str, time_str: str):
