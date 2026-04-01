@@ -1109,16 +1109,43 @@ def _handle_awaiting_payment_notify_time(user_id: str, phone: str, text: str, st
         )
         return True
 
-    from repositories.payment_repository import update_payment_notify
+    from repositories.payment_repository import update_payment_notify, get_payment_for_reminder
     update_payment_notify(payment_id, customer_phone, notify_at)
+
+    # Build full summary
+    due_display = ""
+    reminder_display = state.get("reminder_display", "")
+    if due_dt:
+        due_display = due_dt.strftime('%d %b, %I:%M %p')
+
+    payment = get_payment_for_reminder(state.get("reminder_id"))
+    if payment:
+        total_val   = float(payment.get("total") or 0)
+        advance_val = float(payment.get("advance") or 0)
+        balance_val = float(payment.get("balance") or 0)
+        if balance_val <= 0:
+            payment_line = "💰 Fully paid ✅"
+        elif advance_val == 0:
+            payment_line = f"💰 Full amount due: Rs.{balance_val:.0f}"
+        else:
+            payment_line = f"💰 Rs.{advance_val:.0f} paid · Rs.{balance_val:.0f} balance due"
+    else:
+        payment_line = ""
 
     clear_state(phone)
     send_whatsapp_message(
         phone,
-        f"✅ *All set!*\n\n"
+        f"✅ *All saved!*\n\n"
         f"📝 {task}\n"
-        f"📲 Client will be notified at {notify_at.strftime('%d %b, %I:%M %p')}\n\n"
-        f"Reply *unpaid* to see pending balances.",
+        f"📅 Due: {due_display}\n"
+        f"⏰ Your reminder: {reminder_display}\n"
+        f"📲 Client notified: {notify_at.strftime('%d %b, %I:%M %p')}\n"
+        f"{payment_line}\n\n"
+        f"💡 You can also send it all in one message:\n"
+        f"_{task} {due_display} 9876543210 total {int(total_val if payment else 0)} advance {int(advance_val if payment else 0)}_\n\n"
+        f"It will save:\n"
+        f"📝 Task · 📅 Due date · ⏰ Reminder · 📲 Client number · 💰 Payment\n\n"
+        f"Reply *edit* to update · *unpaid* to see balances",
         show_help=False
     )
     return True
