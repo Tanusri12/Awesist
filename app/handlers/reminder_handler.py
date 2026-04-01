@@ -272,50 +272,96 @@ def _fast_path_with_date(
         }, preset_option=customer_notify_option)
         return
 
-    # ── Nothing extra → save and done ────────────────────────────────
-    set_state(phone, {"step": "just_saved", "reminder_id": reminder_id})
+    # ── Nothing extra → save and done, prompt for payment ────────────
     label = _reminder_label(reminder_offset)
     label_str = f" {label}" if label else ""
-    customer = _extract_customer(task)
+    set_state(phone, {
+        "step": "just_saved",
+        "reminder_id": reminder_id,
+        "user_id": user_id,
+        "task": task,
+    })
     send_whatsapp_message(
         phone,
         f"✅ *Saved!*\n\n"
         f"📝 {task}\n"
         f"📅 Due: {due_display}\n"
         f"⏰ Reminder: {reminder_display}{label_str}\n\n"
-        f"💡 Next time add payment:\n"
-        f"_{customer} ... {due_display.split()[0]} {due_display.split()[1]} total 1200 advance 300_\n\n"
-        f"*reminders* · *unpaid* · *how*"
+        f"💰 Add payment details?\n"
+        f"_total 1200 advance 300_  ·  or *skip*"
     )
 
 
 def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool:
     """
     State right after a reminder is saved.
-    Only 'edit' is handled here — everything else falls through to normal routing.
+    Handles: payment reply, skip, edit — everything else falls through to normal routing.
     """
-    if text.lower().strip() not in ("edit", "update", "change"):
-        # Not an edit request — clear the just_saved state and let normal routing handle it
-        clear_state(phone)
-        return False
-
+    t = text.lower().strip()
     reminder_id = state.get("reminder_id")
-    if not reminder_id:
-        clear_state(phone)
-        send_whatsapp_message(phone, "⚠️ Nothing to edit. Please save a reminder first.")
+    task        = state.get("task", "")
+
+    # ── Edit ──────────────────────────────────────────────────────────
+    if t in ("edit", "update", "change"):
+        if not reminder_id:
+            clear_state(phone)
+            send_whatsapp_message(phone, "⚠️ Nothing to edit. Please save a reminder first.")
+            return True
+        set_state(phone, {"step": "awaiting_edit", "reminder_id": reminder_id})
+        send_whatsapp_message(
+            phone,
+            "✏️ *Update reminder*\n\n"
+            "Send the corrected details — just like you normally would:\n\n"
+            "_Anjali cake 15th April 6pm_\n"
+            "_Meena appointment 20th April at 11am total 2500 advance 500_\n\n"
+            "I'll update the saved reminder.",
+            show_help=False
+        )
         return True
 
-    set_state(phone, {"step": "awaiting_edit", "reminder_id": reminder_id})
-    send_whatsapp_message(
-        phone,
-        "✏️ *Update reminder*\n\n"
-        "Send the corrected details — just like you normally would:\n\n"
-        "_Anjali cake 15th April 6pm_\n"
-        "_Meena appointment 20th April at 11am total 2500 advance 500_\n\n"
-        "I'll update the saved reminder.",
-        show_help=False
-    )
-    return True
+    # ── Skip / No ─────────────────────────────────────────────────────
+    if t in ("skip", "no", "nahi", "done"):
+        clear_state(phone)
+        send_whatsapp_message(
+            phone,
+            "Got it 👍  Reply *how* to see all examples  ·  *reminders* to see your orders",
+            show_help=False
+        )
+        return True
+
+    # ── Payment reply: "total 1200 advance 300" ───────────────────────
+    from ai_extractor import _extract_payment_fields
+    payment_fields = _extract_payment_fields(text)
+    if payment_fields.get("total") and reminder_id:
+        from repositories.payment_repository import create_payment
+        total      = float(payment_fields["total"])
+        advance    = float(payment_fields.get("advance") or 0)
+        advance    = min(advance, total)
+        balance    = total - advance
+        customer   = _extract_customer(task)
+        create_payment(
+            user_id=user_id, reminder_id=reminder_id, customer=customer,
+            total=total, advance=advance, customer_phone=None, notify_customer=False
+        )
+        clear_state(phone)
+        payment_line = (
+            f"💰 Rs.{advance:.0f} advance  ·  Rs.{balance:.0f} balance pending"
+            if balance > 0 else "💰 Fully paid ✅"
+        )
+        send_whatsapp_message(
+            phone,
+            f"✅ *Payment saved!*\n\n"
+            f"📝 {task}\n"
+            f"{payment_line}\n\n"
+            f"💡 Add a customer number next time to notify them automatically 📲\n\n"
+            f"*unpaid* · *reminders* · *how*",
+            show_help=False
+        )
+        return True
+
+    # ── Anything else → clear state, route normally ───────────────────
+    clear_state(phone)
+    return False
 
 
 def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> bool:
@@ -832,13 +878,22 @@ def _ask_notify_customer(phone: str, state: dict, preset_option=None):
     reminder_display = state.get("reminder_display", "")
     reminder_label   = state.get("reminder_label", "")
     label_str        = f" {reminder_label}" if reminder_label else " _(2 hrs before due)_"
+    task             = state.get("task", "your order")
+    due_display      = state.get("due_display", "")
+    total            = state.get("total")
+    balance          = float(total or 0) - float(state.get("advance") or 0)
+
+    # Build a preview of what the customer will receive
+    balance_line = f" Balance due: Rs.{balance:.0f}." if balance > 0 else ""
+    preview = f'_"Your {task} will be ready on {due_display}.{balance_line}"_'
 
     set_state(phone, {**state, "step": "awaiting_notify_customer"})
     send_whatsapp_message(
         phone,
         f"⏰ Your reminder: {reminder_display}{label_str}\n\n"
         f"📲 When should I WhatsApp *{display_num}*?\n\n"
-        f"Type a date & time e.g. _1 Apr 3pm_\n"
+        f"They'll receive:\n{preview}\n\n"
+        f"Type a time e.g. _1pm_  ·  _4:30pm_\n"
         f"or *no* to skip",
         show_help=False
     )
@@ -875,6 +930,15 @@ def _handle_awaiting_notify_customer(user_id: str, phone: str, text: str, state:
     no_words = ("no", "nahi", "na", "nope", "n", "don't notify", "dont notify", "skip")
     if response in no_words:
         notify_customer = False
+        # One-time nudge — remind them what they're missing
+        display_num_nudge = (customer_phone or "")[-10:]
+        send_whatsapp_message(
+            phone,
+            f"📵 Skipped — *{display_num_nudge}* won't be notified.\n\n"
+            f"💡 Next time try a time like _4pm_ — I'll WhatsApp them automatically "
+            f"so they know the order is ready and carry the exact amount.",
+            show_help=False
+        )
     else:
         # Parse free-form date/time e.g. "12 Apr 3pm", "tomorrow 9am"
         try:
