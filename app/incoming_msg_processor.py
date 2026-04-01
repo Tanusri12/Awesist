@@ -127,13 +127,19 @@ def process_message(data: dict):
                     show_help=False
                 )
             else:
-                # No active state — show short usage prompt
+                # No active state — show usage prompt with what happens after saving
                 send_whatsapp_message(
                     phone,
                     "Hi! 👋\n\n"
-                    "Save an order:\n"
-                    "_Anjali cake 13 Apr 5pm_\n\n"
-                    "• *reminders* · *unpaid* · *earnings* · *how*",
+                    "*Save an order like this:*\n"
+                    "Deliver cake to Anjali on 13 Apr at 5pm\n"
+                    "⏰ Reminder set: 13 Apr 3:00 PM (2 hrs before)\n\n"
+                    "*Custom reminder time:*\n"
+                    "Deliver cake to Anjali on 13 Apr at 5pm and set reminder on 13 Apr at 10am\n\n"
+                    "*After saving, I will ask:*\n"
+                    "💰 Any payment to track?\n"
+                    "📲 Notify the customer?\n\n"
+                    "*reminders*  *unpaid*  *earnings*  *how*",
                     show_help=False
                 )
             return

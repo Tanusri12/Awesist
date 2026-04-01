@@ -170,8 +170,8 @@ def _strip_payment_tokens(text: str, payment_fields: dict) -> str:
         digits = payment_fields["customer_phone"][2:]   # strip leading "91"
         t = re.sub(r'(?:\+91|91)?' + re.escape(digits), '', t)
 
-    # Remove "remind ..." and "notify ..." phrases — everything from keyword to end of string
-    t = re.sub(r'\bremind\b.*', '', t, flags=re.I)
+    # Remove "remind ..." / "set reminder ..." / "notify ..." phrases — everything to end of string
+    t = re.sub(r'\b(?:and\s+)?(?:set\s+)?remind\w*\b.*', '', t, flags=re.I)
     t = re.sub(r'\bnotify\b.*', '', t, flags=re.I)
 
     # Remove payment keyword phrases: "total 1200", "advance 300", "paid 300", etc.
