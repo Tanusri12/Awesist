@@ -332,7 +332,7 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
         send_whatsapp_message(
             phone,
             "📲 Want to notify your client when the order is ready?\n"
-            "Reply their number e.g. _9876543210_\nor *skip*",
+            "Reply their number e.g. _98XXXXXX10_\nor *skip*",
             show_help=False
         )
         return True
@@ -374,7 +374,7 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
             f"📝 {task}\n"
             f"{payment_line}\n\n"
             f"📲 Want to notify your client when the order is ready?\n"
-            f"Reply their number e.g. _9876543210_\nor *skip*",
+            f"Reply their number e.g. _98XXXXXX10_\nor *skip*",
             show_help=False
         )
         return True
@@ -1055,7 +1055,7 @@ def _handle_awaiting_payment_notify(user_id: str, phone: str, text: str, state: 
     if not customer_phone:
         send_whatsapp_message(
             phone,
-            "⚠️ Please send a valid 10-digit number e.g. _9876543210_\nor *skip* to continue.",
+            "⚠️ Please send a valid 10-digit number e.g. _98XXXXXX10_\nor *skip* to continue.",
             show_help=False
         )
         return True
@@ -1158,7 +1158,7 @@ def _handle_awaiting_payment_notify_time(user_id: str, phone: str, text: str, st
         f"📲 Client notified: {notify_at.strftime('%d %b, %I:%M %p')}\n"
         f"{payment_line}\n\n"
         f"💡 You can also send it all in one message:\n"
-        f"_{task} {due_display} 9876543210 total {int(total_val if payment else 0)} advance {int(advance_val if payment else 0)}_\n\n"
+        f"_{task} {due_display} 98XXXXXX10 total {int(total_val if payment else 0)} advance {int(advance_val if payment else 0)}_\n\n"
         f"It will save:\n"
         f"📝 Task · 📅 Due date · ⏰ Reminder · 📲 Client number · 💰 Payment\n\n"
         f"Reply *edit* to update · *unpaid* to see balances",
