@@ -1,28 +1,183 @@
 import json
+import re
+import time
 import requests
 from config import OPENAI_API_KEY
 
 OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 
+# ── AI rate-limit table (in-memory, resets on restart) ────────────────────────
+# { phone: {"date": "YYYY-MM-DD", "count": int, "last_ts": float} }
+_AI_CALL_LOG: dict = {}
+
+# Per-plan daily AI call limits
+_AI_DAILY_LIMITS = {
+    "trial":   5,
+    "basic":  15,
+    "pro":    999,
+}
+_AI_COOLDOWN_SECS = 60   # min seconds between two AI calls from the same user
+
+
+def _ai_allowed(phone: str, plan: str = "trial") -> bool:
+    """Return True if this user is allowed another AI call right now."""
+    from datetime import date
+    today = date.today().isoformat()
+    entry = _AI_CALL_LOG.get(phone, {})
+
+    # Reset daily count if it's a new day
+    if entry.get("date") != today:
+        entry = {"date": today, "count": 0, "last_ts": 0}
+
+    # Per-minute cooldown — stops rapid spamming
+    if time.time() - entry.get("last_ts", 0) < _AI_COOLDOWN_SECS:
+        return False
+
+    # Daily limit by plan
+    limit = _AI_DAILY_LIMITS.get(plan, _AI_DAILY_LIMITS["trial"])
+    if entry["count"] >= limit:
+        return False
+
+    return True
+
+
+def _ai_record_call(phone: str):
+    """Increment the AI call counter for this user."""
+    from datetime import date
+    today = date.today().isoformat()
+    entry = _AI_CALL_LOG.get(phone, {"date": today, "count": 0, "last_ts": 0})
+    if entry.get("date") != today:
+        entry = {"date": today, "count": 0, "last_ts": 0}
+    entry["count"] += 1
+    entry["last_ts"] = time.time()
+    _AI_CALL_LOG[phone] = entry
+
+
+def _looks_like_order(text: str) -> bool:
+    """
+    Quick filter — return False for messages that are clearly NOT orders.
+    Avoids wasting AI tokens on questions, greetings, commands, etc.
+    """
+    t = text.strip().lower()
+    # Too short to be an order
+    if len(t.split()) < 3:
+        return False
+    # Looks like a question
+    if t.endswith("?") or t.startswith(("what ", "how ", "why ", "when ", "who ", "is ", "can ", "does ")):
+        return False
+    # Known commands
+    if t in ("hi", "hello", "help", "reminders", "unpaid", "earnings", "how", "cancel", "paid"):
+        return False
+    # Must have at least one digit (date/time/amount) or a time-of-day word
+    if not re.search(r'\d|\btoday\b|\btomorrow\b|\bmorning\b|\bevening\b|\bnight\b|\bnext\b', t):
+        return False
+    return True
+
+
+def _log_ai_call(phone: str, message: str):
+    """Persist the message that triggered an AI call — for auditing and parser improvement."""
+    try:
+        from repositories.db_pool import get_connection, release_connection
+        conn = get_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO ai_call_logs (user_id, message) VALUES (%s, %s)",
+                (phone, message[:500])
+            )
+            conn.commit()
+        finally:
+            cur.close()
+            release_connection(conn)
+    except Exception as e:
+        print(f"[AI log] Failed to save: {e}")
+
+
+def _normalise_text(text: str) -> str:
+    """
+    Normalise common input variations before parsing:
+      - "3.30pm" / "3.30 pm"  → "3:30pm"
+      - "3.30"                 → "3:30"
+      - "at 3" / "at 5"       → "at 3pm" / "at 5pm"  (business-hours PM inference)
+    Leaves prices like "1200.50" untouched.
+    """
+    # Dot-as-colon: "3.30pm" → "3:30pm"
+    text = re.sub(r'\b(\d{1,2})\.([0-5]\d)\s*(am|pm)\b', r'\1:\2\3', text, flags=re.I)
+    text = re.sub(r'\b([01]?\d|2[0-3])\.([0-5]\d)\b(?!\d)', r'\1:\2', text)
+
+    # "at X" PM inference: hours 1–7 without am/pm → almost always PM in business context
+    # "at 8", "at 9" left alone — ambiguous (could be morning appointment)
+    def _infer_pm(m):
+        h = int(m.group(1))
+        mins = m.group(2) or ""   # ":30" or ""
+        if 1 <= h <= 7:
+            return f"at {h}{mins}pm"
+        return m.group(0)   # leave unchanged
+
+    text = re.sub(r'\bat\s+([1-9]|1[0-2])(:\d{2})?\b(?!\s*(?:am|pm))', _infer_pm, text, flags=re.I)
+    return text
+
 
 def extract_reminder_details(message_text: str, phone: str = "unknown") -> dict:
     """
     Extraction priority:
-      1. Local parser (free, instant) — used if it finds a date
-      2. OpenAI API (called at most once) — only if local found no date
-      3. Local result anyway (confidence=low) — if OpenAI also fails/errors
+      1. Normalise text (dot-time, PM inference)
+      2. Local parser (free, instant)
+      3. OpenAI — only when local missed date/time AND all guards pass
+      4. Local result anyway if OpenAI also fails
     """
+    normalised = _normalise_text(message_text)
+
     # Step 1: local parser
-    result = _local_extract(message_text)
-    if result.get("date"):
-        return result
+    result = _local_extract(normalised)
 
-    # Step 2: OpenAI once — only when local found nothing
-    ai_result = _call_openai_once(message_text, phone)
-    if ai_result:
-        return ai_result
+    if result.get("date") and result.get("time"):
+        return result  # Both found — done, no AI needed
 
-    # Step 3: return whatever local got (task only, date=None, time=None)
+    # Step 2: decide whether to call AI
+    has_time_hint = bool(re.search(
+        r'\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b'
+        r'|\bat\s+\d{1,2}\b'
+        r'|\b(?:morning|afternoon|evening|night|noon|midnight|baje|subah|shaam|raat)\b'
+        r'|\b\d{1,2}:\d{2}\b',
+        normalised, re.I
+    ))
+
+    should_call_ai = (
+        not result.get("date") or
+        (result.get("date") and not result.get("time") and has_time_hint)
+    )
+
+    if should_call_ai:
+        # Guard 1: message must look like an order (not a question/command/greeting)
+        if not _looks_like_order(message_text):
+            return result
+
+        # Guard 2: rate limit — check plan from DB (default trial if unknown)
+        try:
+            from repositories.user_repository import get_user_plan
+            plan = get_user_plan(phone) or "trial"
+        except Exception:
+            plan = "trial"
+
+        if not _ai_allowed(phone, plan):
+            print(f"[AI] Rate-limited: phone=***{phone[-4:]} plan={plan}")
+            return result
+
+        # Guard 3: truncate to 300 chars — caps token cost regardless of message length
+        safe_text = message_text[:300]
+
+        _ai_record_call(phone)
+        _log_ai_call(phone, message_text)
+        ai_result = _call_openai_once(safe_text, phone)
+        if ai_result:
+            if not result.get("date"):
+                return ai_result
+            if ai_result.get("time"):
+                result["time"] = ai_result["time"]
+                result["confidence"] = "high"
+            return result
+
     return result
 
 
@@ -36,6 +191,8 @@ def _local_extract(text: str) -> dict:
         # Strip remind/notify phrases BEFORE date extraction so two dates don't confuse the parser
         text_for_dt = re.sub(r'\bremind\b.*', '', text, flags=re.I).strip()
         text_for_dt = re.sub(r'\bnotify\b.*', '', text_for_dt, flags=re.I).strip()
+        # Normalise time formats (e.g. "3.30" → "3:30") before handing to datetime extractor
+        text_for_dt = _normalise_text(text_for_dt)
 
         dt             = extract_datetime(text_for_dt)
         payment_fields = _extract_payment_fields(text)

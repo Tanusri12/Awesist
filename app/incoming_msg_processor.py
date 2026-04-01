@@ -76,6 +76,18 @@ def process_message(data: dict):
         text = unicodedata.normalize("NFKC", text)
         text = _re.sub(r"[^\S\n]+", " ", text).strip()
 
+        # ── Message length gate — reject anything over 500 chars ─────────────
+        MAX_MSG_LEN = 500
+        if len(text) > MAX_MSG_LEN:
+            send_whatsapp_message(
+                phone,
+                "⚠️ That message is too long — please keep it short.\n\n"
+                "Orders should be brief, like:\n"
+                "_Anjali cake 13 Apr 5pm total 1200 advance 300_",
+                show_help=False
+            )
+            return
+
         print(f"MSG from {phone}: {text}")
 
         # Mark as read immediately — sender sees blue ticks

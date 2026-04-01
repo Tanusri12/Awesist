@@ -203,6 +203,25 @@ def mark_summary_sent(phone: str):
         release_connection(conn)
 
 
+def get_user_plan(phone: str) -> str:
+    """
+    Return the user's current plan tier: 'trial' | 'basic' | 'pro' | 'expired'.
+    Used to enforce AI call rate limits per plan.
+    """
+    try:
+        status = get_subscription_status(phone)
+        s = status.get("status", "trial")
+        if s == "trial":
+            return "trial"
+        if s == "active":
+            # When we add plan tiers, check subscription_plan column.
+            # For now, all paid users get 'pro' limits.
+            return "pro"
+        return "expired"   # expired → same as trial limits
+    except Exception:
+        return "trial"
+
+
 def get_summary_users():
     conn = get_connection()
     try:
