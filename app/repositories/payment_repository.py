@@ -57,6 +57,28 @@ def create_payment(user_id: str, reminder_id: int, customer: str, total: float, 
         release_connection(conn)
 
 
+def update_payment_notify(payment_id: int, customer_phone: str, customer_notify_at):
+    """Set customer phone and notification time on an existing payment."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE payments
+            SET customer_phone = %s, notify_customer = TRUE, customer_notify_at = %s
+            WHERE id = %s
+            """,
+            (customer_phone, customer_notify_at, payment_id)
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("ERROR update_payment_notify:", e)
+    finally:
+        cursor.close()
+        release_connection(conn)
+
+
 def get_unpaid(user_id: str) -> list:
     """All orders with outstanding balance."""
     conn = get_connection()

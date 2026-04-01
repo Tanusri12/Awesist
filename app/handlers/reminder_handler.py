@@ -280,6 +280,9 @@ def _fast_path_with_date(
         "reminder_id": reminder_id,
         "user_id": user_id,
         "task": task,
+        "due_date": due_date,
+        "due_time": due_time,
+        "reminder_display": reminder_display,
     })
     send_whatsapp_message(
         phone,
@@ -339,22 +342,34 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
         advance    = min(advance, total)
         balance    = total - advance
         customer   = _extract_customer(task)
-        create_payment(
+        payment_id = create_payment(
             user_id=user_id, reminder_id=reminder_id, customer=customer,
             total=total, advance=advance, customer_phone=None, notify_customer=False
         )
-        clear_state(phone)
-        payment_line = (
-            f"💰 Rs.{advance:.0f} advance  ·  Rs.{balance:.0f} balance pending"
-            if balance > 0 else "💰 Fully paid ✅"
-        )
+
+        if balance <= 0:
+            payment_line = "💰 Fully paid ✅"
+        elif advance == 0:
+            payment_line = f"💰 Full amount due: Rs.{balance:.0f}"
+        else:
+            payment_line = f"💰 Rs.{advance:.0f} paid · Rs.{balance:.0f} balance due"
+
+        set_state(phone, {
+            "step": "awaiting_payment_notify",
+            "reminder_id": reminder_id,
+            "payment_id": payment_id,
+            "task": task,
+            "due_date": state.get("due_date"),
+            "due_time": state.get("due_time"),
+            "reminder_display": state.get("reminder_display", ""),
+        })
         send_whatsapp_message(
             phone,
             f"✅ *Payment saved!*\n\n"
             f"📝 {task}\n"
             f"{payment_line}\n\n"
-            f"💡 Add a customer number next time to notify them automatically 📲\n\n"
-            f"*unpaid* · *reminders* · *how*",
+            f"📲 Want to notify your client when the order is ready?\n"
+            f"Reply their number e.g. _9876543210_\nor *skip*",
             show_help=False
         )
         return True
@@ -437,6 +452,12 @@ def handle_reminder_state(user_id: str, phone: str, text: str, state: dict) -> b
 
     if step == "just_saved":
         return _handle_just_saved(user_id, phone, text, state)
+
+    if step == "awaiting_payment_notify":
+        return _handle_awaiting_payment_notify(user_id, phone, text, state)
+
+    if step == "awaiting_payment_notify_time":
+        return _handle_awaiting_payment_notify_time(user_id, phone, text, state)
 
     if step == "awaiting_edit":
         return _handle_awaiting_edit(user_id, phone, text, state)
@@ -1016,6 +1037,93 @@ def _handle_awaiting_notify_customer(user_id: str, phone: str, text: str, state:
 
 # --------------------------------------------------
 # Helpers
+def _handle_awaiting_payment_notify(user_id: str, phone: str, text: str, state: dict) -> bool:
+    """Vendor replied with a phone number (or skip) after adding payment details."""
+    t = text.strip()
+    if t.lower() in ("skip", "no", "nahi", "na", "done"):
+        clear_state(phone)
+        send_whatsapp_message(phone, "Done 👍  Reply *unpaid* to see pending balances.", show_help=False)
+        return True
+
+    customer_phone = _parse_phone(t)
+    if not customer_phone:
+        send_whatsapp_message(
+            phone,
+            "⚠️ Please send a valid 10-digit number e.g. _9876543210_\nor *skip* to continue.",
+            show_help=False
+        )
+        return True
+
+    due_date = state.get("due_date")
+    due_time = state.get("due_time", "12:00")
+    due_dt   = _build_datetime(due_date, due_time) if due_date else None
+    display_num = customer_phone[-10:]
+
+    context = f"\nDue: {due_dt.strftime('%d %b, %I:%M %p')}" if due_dt else ""
+    set_state(phone, {**state, "step": "awaiting_payment_notify_time", "customer_phone": customer_phone})
+    send_whatsapp_message(
+        phone,
+        f"📲 When should I WhatsApp *{display_num}*?{context}\n\n"
+        f"Type a time e.g. _1pm_, _10:30am_\nor *no* to skip",
+        show_help=False
+    )
+    return True
+
+
+def _handle_awaiting_payment_notify_time(user_id: str, phone: str, text: str, state: dict) -> bool:
+    """Vendor replied with a time to notify the customer."""
+    import re as _re
+    t = text.strip().lower()
+
+    if t in ("no", "skip", "nahi", "na"):
+        clear_state(phone)
+        send_whatsapp_message(phone, "Done 👍  Reply *unpaid* to see pending balances.", show_help=False)
+        return True
+
+    payment_id     = state.get("payment_id")
+    customer_phone = state.get("customer_phone")
+    due_date       = state.get("due_date")
+    due_time       = state.get("due_time", "12:00")
+    task           = state.get("task", "")
+    due_dt         = _build_datetime(due_date, due_time) if due_date else None
+
+    # Parse time like "1pm", "10:30am"
+    notify_at = None
+    m = _re.search(r'(\d{1,2})(?::(\d{2}))?\s*(am|pm)', t)
+    if m and due_dt:
+        hour   = int(m.group(1))
+        minute = int(m.group(2) or 0)
+        ampm   = m.group(3)
+        if ampm == "pm" and hour != 12:
+            hour += 12
+        elif ampm == "am" and hour == 12:
+            hour = 0
+        if 0 <= hour <= 23:
+            notify_at = due_dt.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+    if not notify_at:
+        send_whatsapp_message(
+            phone,
+            "⚠️ Couldn't read that time. Try _1pm_ or _10:30am_\nor *no* to skip.",
+            show_help=False
+        )
+        return True
+
+    from repositories.payment_repository import update_payment_notify
+    update_payment_notify(payment_id, customer_phone, notify_at)
+
+    clear_state(phone)
+    send_whatsapp_message(
+        phone,
+        f"✅ *All set!*\n\n"
+        f"📝 {task}\n"
+        f"📲 Client will be notified at {notify_at.strftime('%d %b, %I:%M %p')}\n\n"
+        f"Reply *unpaid* to see pending balances.",
+        show_help=False
+    )
+    return True
+
+
 # --------------------------------------------------
 
 def _build_datetime(date_str: str, time_str: str):
