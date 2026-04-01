@@ -32,45 +32,25 @@ def handle_onboarding(phone: str, text: str, user_cache: dict):
         update_user_profile(phone, business_name, business_type)
         user_cache.pop(phone, None)
         clear_state(phone)
+        short_example = _onboarding_short_example(business_type)
         send_whatsapp_message(
             phone,
-            f"Done! You're all set, *{business_name}*. 🎉\n\n"
+            f"Done! You're all set, *{business_name}* 🎉\n\n"
             f"Your {TRIAL_DAYS}-day free trial starts now — no card needed.\n\n"
-            "Just send me your orders and appointments in plain language — "
-            "I'll track them, remind you, and even message your customer.\n\n"
-            "Reply *how* to see examples  ·  *help* for all commands",
-            show_help=False
-        )
-        # Second message: teach the one-message format with business-specific examples
-        example = _onboarding_example(business_type)
-        send_whatsapp_message(
-            phone,
-            f"💡 *The more you tell me, the less I ask*\n\n"
-            f"Include any of these in your message:\n\n"
-            f"📝 What the order is\n"
-            f"📅 Date and time\n"
-            f"📱 Customer's WhatsApp number _(I'll notify them too)_\n"
-            f"💰 Total amount + advance paid\n\n"
-            f"Example:\n_{example}_",
+            f"Save your first order — just type:\n"
+            f"_{short_example}_\n\n"
+            f"I'll remind you automatically ⏰",
             show_help=False
         )
 
 
-def _onboarding_example(business_type: str) -> str:
+def _onboarding_short_example(business_type: str) -> str:
+    """One short, minimal example — just name, task, date, time."""
     examples = {
-        "baker":       "Send chocolate cake to Anjali on 13th April at 5pm. "
-                       "Her number is 9876543210. Total Rs 1200, she paid Rs 300 advance.",
-        "salon":       "Meena's bridal appointment on 20th April at 11am. "
-                       "Her number 9876543210. Charge Rs 2500, advance Rs 500 received.",
-        "tailor":      "Ravi suit delivery 25th April at 6pm. "
-                       "His number 9876543210. Total Rs 3500, advance Rs 1000 paid.",
-        "tiffin":      "Sharma ji monthly tiffin starts 1st May. "
-                       "His number 9876543210. Total Rs 1800, advance Rs 900 diya.",
-        "photography": "Anjali pre-wedding shoot 15th April at 9am. "
-                       "Her number 9876543210. Total Rs 8000, advance Rs 3000 received.",
+        "baker":       "Anjali chocolate cake 13 Apr 5pm",
+        "salon":       "Meena bridal appointment 20 Apr 11am",
+        "tailor":      "Ravi suit delivery 25 Apr 6pm",
+        "tiffin":      "Sharma tiffin order 1 May 9am",
+        "photography": "Anjali pre-wedding shoot 15 Apr 9am",
     }
-    return examples.get(
-        business_type,
-        "Send report to Ravi on 20th April at 5pm. "
-        "His number 9876543210. Total Rs 5000, advance Rs 2000 paid."
-    )
+    return examples.get(business_type, "Ravi order 20 Apr 5pm")

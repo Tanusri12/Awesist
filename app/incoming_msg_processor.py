@@ -127,22 +127,13 @@ def process_message(data: dict):
                     show_help=False
                 )
             else:
-                # No active state — show usage guide
+                # No active state — show short usage prompt
                 send_whatsapp_message(
                     phone,
-                    "Hi! 👋 I'm Awesist — your business assistant on WhatsApp.\n\n"
-                    "Here's what I can do for you:\n"
-                    "⏰ *Set reminders* — never miss an order or appointment\n"
-                    "📲 *Notify customers* — auto WhatsApp when their order is ready\n"
-                    "💰 *Track payments* — record dues and mark when collected\n\n"
-                    "Just type your order to get started:\n"
-                    "_Anjali cake 13th April 5pm_\n"
-                    "_Meena appointment tomorrow 11am_\n\n"
-                    "• *reminders* → upcoming orders\n"
-                    "• *unpaid* → pending payments\n"
-                    "• *earnings* → this month's income\n"
-                    "• *how* → more examples\n"
-                    "• *help* → all commands",
+                    "Hi! 👋\n\n"
+                    "Save an order:\n"
+                    "_Anjali cake 13 Apr 5pm_\n\n"
+                    "• *reminders* · *unpaid* · *earnings* · *how*",
                     show_help=False
                 )
             return

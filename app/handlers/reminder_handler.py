@@ -220,6 +220,8 @@ def _fast_path_with_date(
 
     due_dt_iso = due_dt.isoformat() if due_dt else None
 
+    reminder_label = _reminder_label(reminder_offset)
+
     # ── Total known → ask about customer notification (if phone known), then save ─
     if total is not None:
         if customer_phone:
@@ -227,6 +229,7 @@ def _fast_path_with_date(
                 "user_id": user_id,
                 "task": task, "due_display": due_display,
                 "reminder_id": reminder_id, "reminder_display": reminder_display,
+                "reminder_label": reminder_label,
                 "customer_phone": customer_phone,
                 "total": total, "advance": advance,
                 "due_dt": due_dt_iso,
@@ -262,6 +265,7 @@ def _fast_path_with_date(
             "user_id": user_id,
             "task": task, "due_display": due_display,
             "reminder_id": reminder_id, "reminder_display": reminder_display,
+            "reminder_label": reminder_label,
             "customer_phone": customer_phone,
             "total": None, "advance": None,
             "due_dt": due_dt_iso,
@@ -272,13 +276,16 @@ def _fast_path_with_date(
     set_state(phone, {"step": "just_saved", "reminder_id": reminder_id})
     label = _reminder_label(reminder_offset)
     label_str = f" {label}" if label else ""
+    customer = _extract_customer(task)
     send_whatsapp_message(
         phone,
         f"✅ *Saved!*\n\n"
         f"📝 {task}\n"
         f"📅 Due: {due_display}\n"
         f"⏰ Reminder: {reminder_display}{label_str}\n\n"
-        f"Reply *unpaid* to track payments  ·  *reminders* to see all  ·  *edit* to update this"
+        f"💡 Next time add payment:\n"
+        f"_{customer} ... {due_display.split()[0]} {due_display.split()[1]} total 1200 advance 300_\n\n"
+        f"*reminders* · *unpaid* · *how*"
     )
 
 
@@ -823,13 +830,15 @@ def _ask_notify_customer(phone: str, state: dict, preset_option=None):
     customer_phone   = state.get("customer_phone", "")
     display_num      = customer_phone[-10:] if len(customer_phone) >= 10 else customer_phone
     reminder_display = state.get("reminder_display", "")
+    reminder_label   = state.get("reminder_label", "")
+    label_str        = f" {reminder_label}" if reminder_label else " _(2 hrs before due)_"
 
     set_state(phone, {**state, "step": "awaiting_notify_customer"})
     send_whatsapp_message(
         phone,
-        f"⏰ Your reminder: {reminder_display} ✓\n\n"
+        f"⏰ Your reminder: {reminder_display}{label_str}\n\n"
         f"📲 When should I WhatsApp *{display_num}*?\n\n"
-        f"Type a date & time e.g. _12 Apr 3pm_\n"
+        f"Type a date & time e.g. _1 Apr 3pm_\n"
         f"or *no* to skip",
         show_help=False
     )

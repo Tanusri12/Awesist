@@ -164,7 +164,7 @@ def parse_day_of_month(text):
                 year = now.year
                 try:
                     dt = datetime(year, explicit_month, day)
-                    if dt < now:
+                    if dt.date() < now.date():
                         dt = datetime(year + 1, explicit_month, day)
                     return {"date": dt.date().isoformat(), "time": None}
                 except ValueError:
@@ -185,7 +185,7 @@ def parse_day_of_month(text):
         except ValueError:
             return None   # e.g. 31st April is invalid
         # If that date has already passed, bump to next year
-        if dt < now:
+        if dt.date() < now.date():
             try:
                 dt = datetime(year + 1, explicit_month, day)
             except ValueError:
@@ -197,7 +197,7 @@ def parse_day_of_month(text):
         except ValueError:
             return None
 
-        if dt < now:
+        if dt.date() < now.date():
             month = now.month + 1
             year  = now.year
             if month > 12:
