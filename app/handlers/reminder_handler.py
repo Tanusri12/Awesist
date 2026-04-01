@@ -494,11 +494,12 @@ def handle_reminder_state(user_id: str, phone: str, text: str, state: dict) -> b
 # --------------------------------------------------
 
 def _send_template(phone: str, task: str, customer_phone=None, total=None, advance=None):
-    """Send a fill-in template with known fields pre-filled, unknowns shown as hints."""
-    task_line    = f"Task: {task}" if task else "Task: [describe the order or appointment]"
-    phone_line   = f"Phone: {customer_phone}" if customer_phone else "Phone: [customer number or skip]"
-    total_line   = f"Total: {int(total)}" if total is not None else "Total: [order amount or skip]"
-    advance_line = f"Advance: {int(advance)}" if advance is not None else "Advance: [amount paid upfront or skip]"
+    """Send a copy-paste-friendly template. Known fields are pre-filled; missing ones left blank."""
+    task_line    = f"Task: {task.strip()}" if task else "Task: "
+    date_line    = "Date: "
+    phone_line   = f"Customer Phone: {customer_phone}" if customer_phone else "Customer Phone: "
+    total_line   = f"Total: {int(total)}" if total is not None else "Total: "
+    advance_line = f"Advance: {int(advance)}" if advance is not None else "Advance: "
 
     set_state(phone, {
         "step": "awaiting_template",
@@ -510,9 +511,9 @@ def _send_template(phone: str, task: str, customer_phone=None, total=None, advan
 
     send_whatsapp_message(
         phone,
-        f"📋 *Fill in the date and send back:*\n\n"
+        f"📋 Copy, fill in the blanks and send back:\n\n"
         f"{task_line}\n"
-        f"Date: [e.g. 13 Apr 6pm]\n"
+        f"{date_line}\n"
         f"{phone_line}\n"
         f"{total_line}\n"
         f"{advance_line}"

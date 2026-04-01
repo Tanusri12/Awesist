@@ -537,7 +537,7 @@ def parse_template_reply(text: str):
         except Exception:
             pass
 
-    phone_val = _field('phone')
+    phone_val = _field('customer phone') or _field('phone')
     if phone_val:
         digits = re.sub(r'\D', '', phone_val)
         if len(digits) == 10 and digits[0] in '6789':
