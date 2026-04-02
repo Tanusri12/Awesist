@@ -125,7 +125,8 @@ def _normalise_text(text: str) -> str:
             return f"at {h}{mins}pm"
         return m.group(0)   # leave unchanged
 
-    text = re.sub(r'\bat\s+([1-9]|1[0-2])(:\d{2})?\b(?!\s*(?:am|pm))', _infer_pm, text, flags=re.I)
+    # Lookahead must also skip optional :MM so "at 6:07am" is not split into "at 6pm" + ":07am"
+    text = re.sub(r'\bat\s+([1-9]|1[0-2])(:\d{2})?\b(?!(?::\d{2})?\s*(?:am|pm))', _infer_pm, text, flags=re.I)
     return text
 
 
