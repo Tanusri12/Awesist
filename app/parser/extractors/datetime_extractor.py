@@ -302,14 +302,16 @@ def parse_time_only(text):
     if not time:
         return None
 
-    dt = dateparser.parse(time, settings=_settings())
+    # Use parse_time_string directly — avoids dateparser dropping minutes
+    # e.g. "6:30pm" → "18:30" (dateparser.parse sometimes returns "18:00")
+    parsed = parse_time_string(time)
 
-    if not dt:
+    if not parsed:
         return None
 
     return {
-        "date": dt.date().isoformat(),
-        "time": dt.strftime("%H:%M")
+        "date": datetime.now().date().isoformat(),
+        "time": parsed
     }
 
 

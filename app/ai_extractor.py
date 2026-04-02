@@ -69,6 +69,10 @@ def _looks_like_order(text: str) -> bool:
         "can ", "could ", "should ", "do ", "does ", "did ",
         "tell me", "please tell", "please help", "help me",
         "i want to know", "can you tell",
+        # Directed at the bot — insults, complaints, statements
+        "you are", "you're", "you were", "you have", "you've",
+        "you can", "you should", "you don't", "you cant",
+        "i am ", "i'm ", "i was ", "i feel ",
     )
     if t.endswith("?") or t.startswith(question_starters):
         return False
