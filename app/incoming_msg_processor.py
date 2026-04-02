@@ -154,14 +154,39 @@ def process_message(data: dict):
                         show_help=False
                     )
                 else:
-                    # Returning vendor — quick reference
-                    send_whatsapp_message(
-                        phone,
-                        "Hi! 👋\n\n"
-                        "Reply *reminders* · *unpaid* · *earnings*\n"
-                        "Or just send a new booking to save it.",
-                        show_help=False
+                    # Returning vendor — show live snapshot
+                    from repositories.reminder_repository import get_user_reminders
+                    from repositories.payment_repository import get_unpaid
+                    upcoming   = get_user_reminders(phone)
+                    unpaid_list = get_unpaid(phone)
+
+                    upcoming_count = len(upcoming)
+                    unpaid_count   = len(unpaid_list)
+                    unpaid_total   = sum(
+                        float(p.get("balance") or p.get("total", 0)) for p in unpaid_list
                     )
+
+                    lines = ["Hi! 👋\n"]
+
+                    if upcoming_count > 0:
+                        next_r = upcoming[0]
+                        next_task = (next_r.get("task") or "").title()
+                        next_due  = next_r["due_at"].strftime("%-d %b %-I:%M %p") if next_r.get("due_at") else ""
+                        lines.append(f"📅 *{upcoming_count} upcoming reminder{'s' if upcoming_count > 1 else ''}*")
+                        if next_due:
+                            lines.append(f"   Next: {next_task} · {next_due}")
+                    else:
+                        lines.append("📅 No upcoming reminders")
+
+                    if unpaid_count > 0:
+                        lines.append(f"\n💰 *{unpaid_count} unpaid order{'s' if unpaid_count > 1 else ''}*  ·  Rs.{int(unpaid_total)} due")
+                    else:
+                        lines.append("\n💰 No pending balances")
+
+                    lines.append("\nReply *reminders* · *unpaid* · *earnings*")
+                    lines.append("Or send a new booking to save it.")
+
+                    send_whatsapp_message(phone, "\n".join(lines), show_help=False)
             return
 
         # ── Explicit commands (help, reminders, delete, cancel) ───────────
