@@ -62,11 +62,18 @@ def _looks_like_order(text: str) -> bool:
     # Too short to be an order
     if len(t.split()) < 3:
         return False
-    # Looks like a question
-    if t.endswith("?") or t.startswith(("what ", "how ", "why ", "when ", "who ", "is ", "can ", "does ")):
+    # Looks like a question — ends with ? or starts with a question word/phrase
+    question_starters = (
+        "what ", "how ", "why ", "when ", "who ", "where ",
+        "is ", "are ", "was ", "were ", "will ", "would ",
+        "can ", "could ", "should ", "do ", "does ", "did ",
+        "tell me", "please tell", "please help", "help me",
+        "i want to know", "can you tell",
+    )
+    if t.endswith("?") or t.startswith(question_starters):
         return False
-    # Known commands
-    if t in ("hi", "hello", "help", "reminders", "unpaid", "earnings", "how", "cancel", "paid"):
+    # Known commands / single-word inputs
+    if t in ("hi", "hello", "hey", "help", "reminders", "unpaid", "earnings", "how", "cancel", "paid"):
         return False
     # Must have at least one digit (date/time/amount) or a time-of-day word
     if not re.search(r'\d|\btoday\b|\btomorrow\b|\bmorning\b|\bevening\b|\bnight\b|\bnext\b', t):

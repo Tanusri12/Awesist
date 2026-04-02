@@ -16,7 +16,7 @@ Slow path (step-by-step):
          → awaiting_customer_phone → awaiting_payment → awaiting_advance
 """
 from datetime import datetime, timedelta
-from ai_extractor import extract_reminder_details, parse_template_reply
+from ai_extractor import extract_reminder_details, parse_template_reply, _looks_like_order
 from conversation_memory import get_state, set_state, clear_state
 from repositories.payment_repository import create_payment
 from repositories.db_pool import get_connection, release_connection
@@ -44,6 +44,19 @@ def handle_create_reminder(user_id: str, phone: str, text: str):
             "_Anjali cake 13th April 5pm_\n"
             "_Meena blouse stitching 20th April at 11am total 800_\n\n"
             "Type *how* to see more examples.",
+            show_help=False
+        )
+        return
+
+    # ── Not an order (question / greeting / command) → guide the user ────
+    if not _looks_like_order(text):
+        send_whatsapp_message(
+            phone,
+            "I didn't quite get that 😊\n\n"
+            "To save an order, send something like:\n"
+            "_Anjali cake 14 Apr 6pm_\n"
+            "_Meena blouse 20 Apr 11am total 800_\n\n"
+            "Type *how* for more examples · *help* for all commands",
             show_help=False
         )
         return
@@ -83,8 +96,8 @@ def handle_create_reminder(user_id: str, phone: str, text: str):
     due_dt      = _build_datetime(due_date, due_time)
     due_display = due_dt.strftime('%d %b %Y %I:%M %p') if due_dt else f"{due_date} {due_time}"
 
-    _fast_path_with_date(
-        user_id, phone, task, due_date, due_time, due_dt, due_display,
+    _show_confirm_preview(
+        phone, user_id, task, due_date, due_time, due_dt, due_display,
         customer_phone, total, advance,
         reminder_offset=reminder_offset,
         customer_notify_option=customer_notify_option
@@ -163,6 +176,88 @@ def _build_due_datetime(due_date: str, due_time: str) -> datetime:
         return datetime.strptime(f"{due_date} {due_time}", "%Y-%m-%d %H:%M")
     except Exception:
         return datetime.strptime(due_date, "%Y-%m-%d").replace(hour=9, minute=0)
+
+
+def _format_due_for_template(due_date: str, due_time: str) -> str:
+    """Format parsed date+time into a human-friendly string for the edit template, e.g. '14 Apr 6pm'."""
+    try:
+        dt = datetime.strptime(f"{due_date} {due_time}", "%Y-%m-%d %H:%M")
+        hour, minute = dt.hour, dt.minute
+        if hour == 0:
+            t = "12am"
+        elif hour < 12:
+            t = f"{hour}am" if minute == 0 else f"{hour}:{minute:02d}am"
+        elif hour == 12:
+            t = "12pm" if minute == 0 else f"12:{minute:02d}pm"
+        else:
+            h = hour - 12
+            t = f"{h}pm" if minute == 0 else f"{h}:{minute:02d}pm"
+        return dt.strftime(f"%-d %b") + f" {t}"
+    except Exception:
+        return f"{due_date} {due_time}"
+
+
+def _show_confirm_preview(
+    phone: str, user_id: str, task: str,
+    due_date: str, due_time: str, due_dt,
+    due_display: str,
+    customer_phone, total, advance,
+    reminder_offset=None,
+    customer_notify_option=None
+):
+    """Show parsed order data and ask vendor to confirm before saving anything."""
+    # Pre-calculate reminder time so it shows in preview
+    if reminder_offset:
+        reminder_dt = _apply_reminder_offset(due_dt, reminder_offset)
+        if not reminder_dt:
+            reminder_dt = _default_reminder_time(due_dt)
+            reminder_offset = None
+    else:
+        reminder_dt = _default_reminder_time(due_dt)
+
+    reminder_display = reminder_dt.strftime('%d %b %Y %I:%M %p') if reminder_dt else "—"
+    reminder_label   = _reminder_label(reminder_offset)
+    label_str        = f" {reminder_label}" if reminder_label else ""
+
+    lines = ["📋 *Got it! Is this right?*\n"]
+    lines.append(f"📝 {task}")
+    lines.append(f"📅 {due_display}")
+    lines.append(f"⏰ Reminder: {reminder_display}{label_str}")
+
+    if total is not None:
+        adv = float(advance or 0)
+        bal = float(total) - adv
+        if bal > 0:
+            lines.append(f"💰 Rs.{int(total)} total · Rs.{int(adv)} advance · Rs.{int(bal)} due")
+        else:
+            lines.append(f"💰 Rs.{int(total)} ✅ fully paid")
+
+    if customer_phone:
+        display = customer_phone[-10:] if len(customer_phone) >= 10 else customer_phone
+        lines.append(f"📱 {display}")
+
+    lines.append("\nReply *yes* to save  ·  *edit* to change")
+
+    due_dt_iso = due_dt.isoformat() if due_dt else None
+
+    set_state(phone, {
+        "step":                  "awaiting_confirm",
+        "user_id":               user_id,
+        "task":                  task,
+        "due_date":              due_date,
+        "due_time":              due_time,
+        "due_display":           due_display,
+        "reminder_display":      reminder_display,
+        "reminder_label":        reminder_label,
+        "reminder_offset":       reminder_offset,
+        "customer_phone":        customer_phone,
+        "total":                 total,
+        "advance":               advance,
+        "customer_notify_option": customer_notify_option,
+        "due_dt":                due_dt_iso,
+    })
+
+    send_whatsapp_message(phone, "\n".join(lines), show_help=False)
 
 
 def _fast_path_with_date(
@@ -419,6 +514,50 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
     return False
 
 
+def _handle_awaiting_confirm(user_id: str, phone: str, text: str, state: dict) -> bool:
+    """
+    User has been shown a preview of parsed data.
+    'yes' → save.   'edit' → show pre-filled template.   anything else → treat as new message.
+    """
+    t = text.lower().strip()
+
+    YES_WORDS  = {"yes", "y", "ok", "okay", "haan", "ha", "correct", "right", "save", "yep", "yup"}
+    EDIT_WORDS = {"edit", "update", "change", "no", "nahi", "nope", "wrong"}
+
+    if t in YES_WORDS:
+        due_date = state.get("due_date")
+        due_time = state.get("due_time")
+        due_dt   = _build_due_datetime(due_date, due_time) if due_date and due_time else None
+        due_display = state.get("due_display", "")
+        clear_state(phone)
+        _fast_path_with_date(
+            user_id, phone,
+            state.get("task"), due_date, due_time, due_dt, due_display,
+            state.get("customer_phone"), state.get("total"), state.get("advance"),
+            reminder_offset=state.get("reminder_offset"),
+            customer_notify_option=state.get("customer_notify_option"),
+        )
+        return True
+
+    if t in EDIT_WORDS:
+        due_date = state.get("due_date", "")
+        due_time = state.get("due_time", "")
+        date_val = _format_due_for_template(due_date, due_time) if due_date else ""
+        _send_template(
+            phone,
+            state.get("task", ""),
+            customer_phone=state.get("customer_phone"),
+            total=state.get("total"),
+            advance=state.get("advance"),
+            date_val=date_val,
+        )
+        return True
+
+    # Anything else — treat as a brand-new message, clear state
+    clear_state(phone)
+    return False
+
+
 def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> bool:
     """Parse the corrected message and update the existing reminder in place."""
     from repositories.reminder_repository import update_reminder
@@ -475,6 +614,9 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
 def handle_reminder_state(user_id: str, phone: str, text: str, state: dict) -> bool:
     step = state.get("step")
 
+    if step == "awaiting_confirm":
+        return _handle_awaiting_confirm(user_id, phone, text, state)
+
     if step == "awaiting_template":
         return _handle_awaiting_template(user_id, phone, text, state)
 
@@ -518,10 +660,10 @@ def handle_reminder_state(user_id: str, phone: str, text: str, state: dict) -> b
 # State steps
 # --------------------------------------------------
 
-def _send_template(phone: str, task: str, customer_phone=None, total=None, advance=None):
+def _send_template(phone: str, task: str, customer_phone=None, total=None, advance=None, date_val: str = ""):
     """Send a copy-paste-friendly template. Known fields are pre-filled; missing ones left blank."""
     task_line    = f"Task: {task.strip()}" if task else "Task: "
-    date_line    = "Date: "
+    date_line    = f"Date: {date_val}" if date_val else "Date: "
     phone_line   = f"Customer Phone: {customer_phone}" if customer_phone else "Customer Phone: "
     total_line   = f"Total: {int(total)}" if total is not None else "Total: "
     advance_line = f"Advance: {int(advance)}" if advance is not None else "Advance: "

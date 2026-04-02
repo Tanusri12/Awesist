@@ -9,10 +9,12 @@ from dateparser.search import search_dates
 # SETTINGS
 # --------------------------------------------------
 
-SETTINGS = {
-    "PREFER_DATES_FROM": "future",
-    "RELATIVE_BASE": datetime.now()
-}
+def _settings():
+    """Return fresh dateparser settings with current time as relative base."""
+    return {
+        "PREFER_DATES_FROM": "future",
+        "RELATIVE_BASE": datetime.now()
+    }
 
 
 # --------------------------------------------------
@@ -20,11 +22,31 @@ SETTINGS = {
 # --------------------------------------------------
 
 def detect_time(text):
-
     time_pattern = r"\b\d{1,2}(:\d{2})?\s*(am|pm)\b|\b\d{1,2}:\d{2}\b"
     match = re.search(time_pattern, text)
-
     return match.group(0) if match else None
+
+
+def parse_time_string(time_str: str):
+    """
+    Convert a time string like '6pm', '6:30pm', '18:30', '9am' directly to HH:MM.
+    Does NOT use dateparser — avoids timezone/settings issues.
+    """
+    if not time_str:
+        return None
+    m = re.match(r'^\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*$', time_str.strip(), re.I)
+    if not m:
+        return None
+    hour   = int(m.group(1))
+    minute = int(m.group(2) or 0)
+    ampm   = (m.group(3) or "").lower()
+    if ampm == "pm" and hour != 12:
+        hour += 12
+    elif ampm == "am" and hour == 12:
+        hour = 0
+    if 0 <= hour <= 23 and 0 <= minute <= 59:
+        return f"{hour:02d}:{minute:02d}"
+    return None
 
 
 # --------------------------------------------------
@@ -229,7 +251,7 @@ def parse_relative_time(text):
 
     phrase = match.group(0)
 
-    dt = dateparser.parse(phrase, settings=SETTINGS)
+    dt = dateparser.parse(phrase, settings=_settings())
 
     if not dt:
         return None
@@ -255,7 +277,7 @@ def parse_weekday(text):
 
         if day in text:
 
-            dt = dateparser.parse(day, settings=SETTINGS)
+            dt = dateparser.parse(day, settings=_settings())
 
             if dt:
 
@@ -263,7 +285,7 @@ def parse_weekday(text):
 
                 return {
                     "date": dt.date().isoformat(),
-                    "time": dt.strftime("%H:%M") if time else None
+                    "time": parse_time_string(time) if time else None
                 }
 
     return None
@@ -280,7 +302,7 @@ def parse_time_only(text):
     if not time:
         return None
 
-    dt = dateparser.parse(time, settings=SETTINGS)
+    dt = dateparser.parse(time, settings=_settings())
 
     if not dt:
         return None
@@ -297,7 +319,7 @@ def parse_time_only(text):
 
 def parse_natural_language(text):
 
-    results = search_dates(text, settings=SETTINGS)
+    results = search_dates(text, settings=_settings())
 
     if not results:
         return None
@@ -308,7 +330,7 @@ def parse_natural_language(text):
 
     return {
         "date": dt.date().isoformat(),
-        "time": dt.strftime("%H:%M") if time else None
+        "time": parse_time_string(time) if time else None
     }
 
 
@@ -347,8 +369,8 @@ def extract_datetime(text):
     if result.get("date") and not result.get("time"):
         time_str = detect_time(text)
         if time_str:
-            dt = dateparser.parse(time_str, settings=SETTINGS)
-            if dt:
-                result["time"] = dt.strftime("%H:%M")
+            parsed_time = parse_time_string(time_str)
+            if parsed_time:
+                result["time"] = parsed_time
 
     return result
