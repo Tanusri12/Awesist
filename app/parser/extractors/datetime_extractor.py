@@ -40,6 +40,9 @@ def parse_time_string(time_str: str):
     hour   = int(m.group(1))
     minute = int(m.group(2) or 0)
     ampm   = (m.group(3) or "").lower()
+    # Validate 12-hour range when am/pm is given
+    if ampm and not (1 <= hour <= 12):
+        return None
     if ampm == "pm" and hour != 12:
         hour += 12
     elif ampm == "am" and hour == 12:
@@ -168,29 +171,48 @@ def _extract_month_from_text(text: str):
 
 def parse_day_of_month(text):
 
-    # Try with ordinal suffix: "12th April", "5th March"
+    month_pattern = '|'.join(_MONTH_NAMES.keys())
+
+    # Helper: resolve (day, month_name_str) → date dict or None
+    def _resolve(day, month_name_str):
+        explicit_month = _MONTH_NAMES.get(month_name_str.lower()[:3]) or _MONTH_NAMES.get(month_name_str.lower())
+        if not explicit_month:
+            return None
+        now = datetime.now()
+        year = now.year
+        try:
+            dt = datetime(year, explicit_month, day)
+            if dt.date() < now.date():
+                dt = datetime(year + 1, explicit_month, day)
+            return {"date": dt.date().isoformat(), "time": None}
+        except ValueError:
+            return None
+
+    # Pattern 1: month-first — "April 14", "April 14th", "Apr 5th"
+    # Negative lookahead (?!:\d{2}) prevents matching the hour in "Apr 6:30pm"
+    month_first = re.search(
+        rf'\b({month_pattern})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?!:\d{{2}})\b', text, re.I
+    )
+    if month_first:
+        month_name_str = month_first.group(1)
+        day = int(month_first.group(2))
+        result = _resolve(day, month_name_str)
+        if result:
+            return result
+
+    # Pattern 2: ordinal day (possibly with month after): "12th April", "5th March", "12th"
     match = re.search(r'\b(\d{1,2})(st|nd|rd|th)\b', text)
 
-    # Also handle bare day + month name: "12 Apr", "5 March", "12 april"
+    # Pattern 3: bare day + month name: "12 Apr", "5 March", "12 april"
     if not match:
-        month_pattern = '|'.join(_MONTH_NAMES.keys())
         bare_match = re.search(
             rf'\b(\d{{1,2}})\s+({month_pattern})\b', text, re.I
         )
         if bare_match:
             day = int(bare_match.group(1))
-            month_name = bare_match.group(2).lower()[:3]
-            explicit_month = _MONTH_NAMES.get(month_name) or _MONTH_NAMES.get(bare_match.group(2).lower())
-            if explicit_month:
-                now = datetime.now()
-                year = now.year
-                try:
-                    dt = datetime(year, explicit_month, day)
-                    if dt.date() < now.date():
-                        dt = datetime(year + 1, explicit_month, day)
-                    return {"date": dt.date().isoformat(), "time": None}
-                except ValueError:
-                    return None
+            result = _resolve(day, bare_match.group(2))
+            if result:
+                return result
         return None
 
     day = int(match.group(1))
