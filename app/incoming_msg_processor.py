@@ -497,6 +497,23 @@ def route_intent(user_id: str, phone: str, text: str):
             handle_mark_paid(user_id, phone, text)
         return
 
+    # ── Edit last reminder (no active state) ─────────────────────────────
+    if text_lower in ("edit", "update", "change"):
+        from repositories.reminder_repository import get_most_recent_reminder
+        recent = get_most_recent_reminder(user_id)
+        if recent:
+            # Restore minimal state so the edit handler has a reminder_id to work with
+            from handlers.state_manager import set_state
+            set_state(phone, {"step": "just_saved", "reminder_id": recent["id"], "task": recent.get("task", "")})
+            from handlers.reminder_handler import handle_reminder
+            handle_reminder(user_id, phone, text_lower)
+        else:
+            send_whatsapp_message(
+                phone,
+                "⚠️ No saved orders to edit yet.\n\nSave one first, e.g. _Anjali cake 14 Apr 6pm_"
+            )
+        return
+
     # Standard intents
     intent = classify_intent(text)
 

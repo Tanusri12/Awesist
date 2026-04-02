@@ -153,6 +153,28 @@ def get_user_reminders(user_id: str) -> list:
         release_connection(conn)
 
 
+def get_most_recent_reminder(user_id: str) -> dict:
+    """Return the most recently created pending reminder for this user, or None."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute(
+            """
+            SELECT id, task, reminder_time, due_at
+            FROM reminders
+            WHERE user_id = %s AND status = 'pending'
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (user_id,)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        cursor.close()
+        release_connection(conn)
+
+
 def update_reminder(reminder_id: int, user_id: str, task: str, reminder_time, due_date: str = None, due_time: str = None):
     """Update task, reminder_time and optional due fields on an existing reminder."""
     conn = get_connection()

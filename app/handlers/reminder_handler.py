@@ -1312,24 +1312,40 @@ def _handle_awaiting_payment_notify_time(user_id: str, phone: str, text: str, st
     task           = state.get("task", "")
     due_dt         = _build_datetime(due_date, due_time) if due_date else None
 
-    # Parse time like "1pm", "10:30am"
+    # Parse notification time — accepts:
+    #   "1pm", "10:30am", "6:25pm"          — time only → use due date
+    #   "2nd april 6:25pm", "Apr 2 6pm"     — date+time → use that specific datetime
+    #   "6:25", "18:30"                      — 24-hour or bare time → infer date from due_dt
     notify_at = None
-    m = _re.search(r'(\d{1,2})(?::(\d{2}))?\s*(am|pm)', t)
-    if m and due_dt:
-        hour   = int(m.group(1))
-        minute = int(m.group(2) or 0)
-        ampm   = m.group(3)
-        if ampm == "pm" and hour != 12:
-            hour += 12
-        elif ampm == "am" and hour == 12:
-            hour = 0
-        if 0 <= hour <= 23:
+
+    from parser.extractors.datetime_extractor import extract_datetime, detect_time, parse_time_string
+    from ai_extractor import _normalise_text
+
+    dt_result = extract_datetime(_normalise_text(t))
+    got_date = dt_result.get("date")
+    got_time = dt_result.get("time")
+
+    if got_time:
+        if got_date:
+            # User gave a specific date+time (e.g. "2nd april 6:25pm")
+            from datetime import datetime as _dt
+            notify_at = _dt.fromisoformat(f"{got_date} {got_time}:00")
+        elif due_dt:
+            # Time only — apply to due date
+            hour, minute = int(got_time[:2]), int(got_time[3:])
             notify_at = due_dt.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    else:
+        # Last resort: bare 24-hour time like "6:25" with no am/pm
+        bare = _re.search(r'\b(\d{1,2}):(\d{2})\b', t)
+        if bare and due_dt:
+            hour, minute = int(bare.group(1)), int(bare.group(2))
+            if 0 <= hour <= 23 and 0 <= minute <= 59:
+                notify_at = due_dt.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
     if not notify_at:
         send_whatsapp_message(
             phone,
-            "⚠️ Couldn't read that time. Try _1pm_ or _10:30am_\nor *no* to skip.",
+            "⚠️ Couldn't read that time. Try _1pm_, _10:30am_, or _2 Apr 6pm_\nor *no* to skip.",
             show_help=False
         )
         return True
