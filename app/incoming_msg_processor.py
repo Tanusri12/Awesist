@@ -184,7 +184,8 @@ def process_message(data: dict):
                         lines.append("\n💰 No pending balances")
 
                     lines.append("\nReply *reminders* · *unpaid* · *earnings*")
-                    lines.append("Or send a new booking to save it.")
+                    lines.append("Or save a new booking:")
+                    lines.append("_Anjali cake 14 Apr 6pm_")
 
                     send_whatsapp_message(phone, "\n".join(lines), show_help=False)
             return
