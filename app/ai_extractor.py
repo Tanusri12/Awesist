@@ -329,6 +329,19 @@ def _strip_payment_tokens(text: str, payment_fields: dict) -> str:
     import re
     t = text
 
+    # Strip common sentence-starter filler before the actual task content
+    # e.g. "There is a booking for Anjali ..." → "Anjali ..."
+    _FILLER_PREFIXES = [
+        r'there\s+is\s+an?\s+(?:booking|order|reminder)\s+(?:for\s+)?',
+        r'i\s+have\s+an?\s+(?:booking|order)\s+(?:for\s+)?',
+        r'(?:please\s+)?(?:add|save|set|create|make)\s+an?\s+(?:booking|order|reminder)\s+(?:for\s+)?',
+        r'(?:please\s+)?(?:add|save|set|create)\s+(?:a\s+)?reminder\s+(?:for\s+)?',
+        r'booking\s+for\b\s*',
+        r'order\s+for\b\s*',
+    ]
+    for pattern in _FILLER_PREFIXES:
+        t = re.sub(r'^\s*' + pattern, '', t, flags=re.I).strip()
+
     # Remove matched phone number (10-digit Indian mobile, with optional +91/91 prefix)
     if payment_fields.get("customer_phone"):
         digits = payment_fields["customer_phone"][2:]   # strip leading "91"
@@ -354,11 +367,15 @@ def _strip_payment_tokens(text: str, payment_fields: dict) -> str:
     t = re.sub(r'\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b', '', t, flags=re.I)
     t = re.sub(r'\b(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)\b', '', t, flags=re.I)
     t = re.sub(r'\b(?:tomorrow|today|tonight|morning|evening|next\s+\w+)\b', '', t, flags=re.I)
-    t = re.sub(r'\b\d{1,2}(?:st|nd|rd|th)?\b', '', t)   # strip bare ordinals like "13th"
+    # Strip bare ordinals ONLY (13th, 1st, 2nd) — NOT bare numbers like "8" which are quantities
+    t = re.sub(r'\b\d{1,2}(?:st|nd|rd|th)\b', '', t)
+
+    # Strip trailing punctuation
+    t = re.sub(r'[.,;!?]+$', '', t.strip())
 
     # Collapse extra whitespace and strip dangling prepositions/conjunctions at end
     t = re.sub(r'\s{2,}', ' ', t).strip()
-    t = re.sub(r'\s+\b(?:at|on|by|for|to|and|the|a|an)\b\s*$', '', t, flags=re.I).strip()
+    t = re.sub(r'\s+\b(?:at|on|by|for|of|to|and|the|a|an)\b\s*$', '', t, flags=re.I).strip()
     return t
 
 

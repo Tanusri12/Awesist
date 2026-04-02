@@ -473,13 +473,16 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
         total_val   = str(int(current["total"])) if current.get("total") else ""
         advance_val = str(int(current["advance"])) if current.get("advance") else ""
 
+        reminder_val = "2hrs before"  # default; shown so vendor knows they can change it
+
         set_state(phone, {"step": "awaiting_edit", "reminder_id": reminder_id})
         send_whatsapp_message(
             phone,
             f"✏️ *Update and send back:*\n\n"
             f"Task: {task_val}\n"
             f"Date: {date_val}\n"
-            f"Customer Phone: {phone_val}\n"
+            f"Reminder: {reminder_val}\n"
+            f"Customer Phone (to notify them): {phone_val}\n"
             f"Total: {total_val}\n"
             f"Advance: {advance_val}",
             show_help=False
@@ -697,11 +700,12 @@ def handle_reminder_state(user_id: str, phone: str, text: str, state: dict) -> b
 
 def _send_template(phone: str, task: str, customer_phone=None, total=None, advance=None, date_val: str = ""):
     """Send a copy-paste-friendly template. Known fields are pre-filled; missing ones left blank."""
-    task_line    = f"Task: {task.strip()}" if task else "Task: "
-    date_line    = f"Date: {date_val}" if date_val else "Date: "
-    phone_line   = f"Customer Phone: {customer_phone}" if customer_phone else "Customer Phone: "
-    total_line   = f"Total: {int(total)}" if total is not None else "Total: "
-    advance_line = f"Advance: {int(advance)}" if advance is not None else "Advance: "
+    task_line     = f"Task: {task.strip()}" if task else "Task: "
+    date_line     = f"Date: {date_val}" if date_val else "Date: "
+    reminder_line = "Reminder: 2hrs before"
+    phone_line    = f"Customer Phone (to notify them): {customer_phone}" if customer_phone else "Customer Phone (to notify them): "
+    total_line    = f"Total: {int(total)}" if total is not None else "Total: "
+    advance_line  = f"Advance: {int(advance)}" if advance is not None else "Advance: "
 
     set_state(phone, {
         "step": "awaiting_template",
@@ -716,9 +720,11 @@ def _send_template(phone: str, task: str, customer_phone=None, total=None, advan
         f"📋 Copy, fill in the blanks and send back:\n\n"
         f"{task_line}\n"
         f"{date_line}\n"
+        f"{reminder_line}\n"
         f"{phone_line}\n"
         f"{total_line}\n"
-        f"{advance_line}"
+        f"{advance_line}",
+        show_help=False
     )
 
 
