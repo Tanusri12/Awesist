@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Awesist — Conversation Flow</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 24px;
+  }
+  h1 { font-size: 22px; font-weight: 700; color: #f8fafc; margin-bottom: 6px; }
+  .subtitle { font-size: 13px; color: #94a3b8; margin-bottom: 28px; }
+
+  .tabs { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+  .tab {
+    padding: 8px 18px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    cursor: pointer; border: 1.5px solid #334155; background: transparent;
+    color: #94a3b8; transition: all 0.2s;
+  }
+  .tab.active { background: #6366f1; border-color: #6366f1; color: #fff; }
+
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .mermaid-wrap { background: #1e293b; border-radius: 16px; padding: 32px; overflow-x: auto; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .card { background: #1e293b; border: 1.5px solid #334155; border-radius: 12px; padding: 18px; }
+  .card .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #64748b; margin-bottom: 8px; }
+  .card .title { font-size: 15px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; }
+  .card .desc { font-size: 13px; color: #94a3b8; line-height: 1.6; }
+  .card .tags { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+  .tag.green  { background: #052e16; color: #4ade80; border: 1px solid #166534; }
+  .tag.blue   { background: #0c1a3a; color: #60a5fa; border: 1px solid #1e3a8a; }
+  .tag.yellow { background: #1c1003; color: #fbbf24; border: 1px solid #78350f; }
+  .tag.purple { background: #1e0a3a; color: #c084fc; border: 1px solid #6b21a8; }
+  .tag.red    { background: #1c0505; color: #f87171; border: 1px solid #7f1d1d; }
+  .tag.gray   { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+
+  /* Break cards */
+  .break-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+  .break-card { background: #1e293b; border-radius: 12px; padding: 20px; border-left: 4px solid #ef4444; }
+  .break-card.fixed { border-left-color: #22c55e; }
+  .break-card.partial { border-left-color: #f59e0b; }
+  .break-card .bc-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .break-card .bc-icon { font-size: 22px; }
+  .break-card .bc-title { font-size: 14px; font-weight: 700; color: #f1f5f9; }
+  .break-card .bc-status { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; margin-left: auto; }
+  .status-fixed   { background: #052e16; color: #4ade80; border: 1px solid #166534; }
+  .status-open    { background: #1c0505; color: #f87171; border: 1px solid #7f1d1d; }
+  .status-partial { background: #1c1003; color: #fbbf24; border: 1px solid #78350f; }
+  .msg-box { background: #0f172a; border-radius: 8px; padding: 10px 14px; font-family: monospace; font-size: 12px; color: #94a3b8; margin-bottom: 10px; }
+  .msg-box .in  { color: #94a3b8; }
+  .msg-box .out { color: #6366f1; font-weight: 600; }
+  .msg-box .bad { color: #f87171; }
+  .msg-box .ok  { color: #4ade80; }
+  .bc-explain { font-size: 12.5px; color: #94a3b8; line-height: 1.6; margin-bottom: 8px; }
+  .bc-fix { font-size: 12px; color: #60a5fa; background: #0c1a3a; border-radius: 6px; padding: 6px 10px; border: 1px solid #1e3a8a; }
+
+  /* Phone mockup */
+  .phone-wrap { display: flex; justify-content: center; margin-top: 4px; }
+  .phone { width: 340px; background: #111b21; border-radius: 28px; padding: 20px 12px; border: 6px solid #1e293b; }
+  .phone .bar { display: flex; align-items: center; gap: 8px; padding: 0 4px 12px; border-bottom: 1px solid #1e293b; margin-bottom: 14px; }
+  .phone .bar .avatar { width: 36px; height: 36px; border-radius: 50%; background: #25d366; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .phone .bar .name { font-size: 14px; font-weight: 700; color: #e2e8f0; }
+  .phone .bar .status { font-size: 11px; color: #4ade80; }
+  .msg-list { display: flex; flex-direction: column; gap: 6px; padding: 0 4px; }
+  .bubble { max-width: 88%; padding: 8px 12px; border-radius: 8px; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; }
+  .bubble.in  { background: #1f2c34; color: #e9edef; border-radius: 8px 8px 8px 0; align-self: flex-start; }
+  .bubble.out { background: #005c4b; color: #e9edef; border-radius: 8px 8px 0 8px; align-self: flex-end; }
+  .time-label { font-size: 10px; color: #8696a0; align-self: center; margin: 4px 0 2px; }
+
+  .section-title { font-size: 16px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+  .section-sub { font-size: 13px; color: #64748b; margin-bottom: 20px; }
+  .legend { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94a3b8; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+</style>
+</head>
+<body>
+
+<h1>🤖 Awesist — Conversation Flow</h1>
+<p class="subtitle">WhatsApp business assistant · Full message flow map · Updated 2 Apr 2026</p>
+
+<div class="tabs">
+  <button class="tab active" onclick="show('order', this)">📦 Order Flow</button>
+  <button class="tab" onclick="show('breaks', this)">🔥 Break Points</button>
+  <button class="tab" onclick="show('commands', this)">⌨️ Commands</button>
+  <button class="tab" onclick="show('states', this)">🔄 States</button>
+  <button class="tab" onclick="show('workers', this)">⏰ Workers</button>
+  <button class="tab" onclick="show('preview', this)">📱 Message Preview</button>
+</div>
+
+
+<!-- ═══════════════════════════════════════ ORDER FLOW ═══════════════════════════════════════ -->
+<div id="order" class="section active">
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#6366f1', 'primaryTextColor': '#f1f5f9', 'primaryBorderColor': '#4f46e5', 'lineColor': '#64748b', 'secondaryColor': '#1e293b', 'tertiaryColor': '#0f172a', 'edgeLabelBackground': '#1e293b', 'fontFamily': 'system-ui'}}}%%
+flowchart TD
+    A([📲 User sends message]) --> LEN{Over 500 chars?}
+    LEN -->|Yes| TOO([⚠️ Too long — reject])
+    LEN -->|No| STATE{Active state?}
+
+    STATE -->|Yes| SH([🔄 Route to state handler])
+    STATE -->|No| B{Message type?}
+
+    B -->|hi / hello| G([👋 Welcome + examples])
+    B -->|reminders/unpaid/earnings/how/help| CMD([⌨️ Command handler])
+    B -->|paid name| PAID([✅ Mark as collected])
+    B -->|Other text| META{Meta-command?\ne.g. set reminder}
+
+    META -->|Yes| METARESP([💡 Just send details directly])
+    META -->|No| ORDER{Looks like an order?\nnot a question / greeting}
+
+    ORDER -->|No — question or greeting| NOTORDER([😊 Guide to send an order])
+    ORDER -->|Yes| C[🔤 Normalise text\n3.30pm→3:30pm · at 3→at 3pm]
+
+    C --> D[🔍 Local regex parser\nextract date · time · task · amounts]
+    D --> GIB{Gibberish task?\nconsonant run > 4\nvowel ratio < 10%}
+    GIB -->|Yes| GIBR([❌ Couldn't understand])
+    GIB -->|No| DT{Date + Time\nboth found?}
+
+    DT -->|Yes| CONF
+    DT -->|No — missing date| AINEED{Should call AI?\nnot rate-limited}
+    AINEED -->|Rate limit hit| TPL
+    AINEED -->|Call AI| AI[🤖 OpenAI fallback]
+    AI --> AIOK{AI returned\ndate/time?}
+    AIOK -->|Yes| CONF
+    AIOK -->|No| TPL
+
+    TPL[📋 Send fill-in template\nTask · Date · Phone · Total · Advance\nstate: awaiting_template]
+    TPL --> U1([User fills & sends back])
+    U1 --> D
+
+    CONF[📋 Confirm preview\nIs this right? · yes · edit\nstate: awaiting_confirm]
+    CONF -->|edit| EDIT[✏️ Pre-filled edit template\nshows current values]
+    EDIT --> U2([User corrects & sends back])
+    U2 --> D
+    CONF -->|yes| SAVE[💾 Save reminder to DB]
+
+    SAVE --> PAY{Total already\nin message?}
+    PAY -->|Yes| SAVEP[💾 Save payment record]
+    SAVEP --> NOTIF
+
+    PAY -->|No| ASKPAY[💬 Want to track payment?\ntotal 1200 advance 300 · or skip\nstate: just_saved]
+    ASKPAY -->|total X adv Y| SAVEP2[💾 Save payment]
+    SAVEP2 --> NOTIF
+    ASKPAY -->|skip| NOTIF
+
+    NOTIF[💬 Want to notify client?\nReply phone number or skip\nstate: awaiting_payment_notify]
+    NOTIF -->|phone number| NTIME[💬 When to notify?\ne.g. 12 Apr 3pm · or skip\nstate: awaiting_payment_notify_time]
+    NTIME -->|date + time| SAVNT[💾 Save customer notify_at]
+    SAVNT --> DONE
+    NTIME -->|skip| DONE
+    NOTIF -->|skip| DONE
+
+    DONE([✅ All saved!\nReminder set · Payment tracked · Client notified])
+
+    style A fill:#6366f1,color:#fff
+    style DONE fill:#16a34a,color:#fff
+    style GIBR fill:#dc2626,color:#fff
+    style NOTORDER fill:#0891b2,color:#fff
+    style METARESP fill:#0891b2,color:#fff
+    style G fill:#0891b2,color:#fff
+    style CMD fill:#0891b2,color:#fff
+    style PAID fill:#16a34a,color:#fff
+    style TOO fill:#dc2626,color:#fff
+    style AI fill:#d97706,color:#fff
+    style TPL fill:#7c3aed,color:#fff
+    style CONF fill:#0f766e,color:#fff
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════ BREAK POINTS ═══════════════════════════════════════ -->
+<div id="breaks" class="section">
+  <p class="section-title">🔥 Messages That Break (or Broke) the Flow</p>
+  <p class="section-sub">Real examples that caused unexpected behaviour · Red = still open · Yellow = partial fix · Green = fixed</p>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> Still open</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> Partial fix</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div> Fixed</div>
+  </div>
+
+  <div class="break-grid">
+
+    <!-- 1 -->
+    <div class="break-card fixed">
+      <div class="bc-header">
+        <div class="bc-icon">🤔</div>
+        <div class="bc-title">Question saved as an order</div>
+        <span class="bc-status status-fixed">Fixed</span>
+      </div>
+      <div class="msg-box">
+        <div class="out">can you tell me what to do</div>
+        <div class="bad">✅ Saved! Task: can you tell me what to do · Due: 05 Apr 12:00 PM</div>
+        <div class="ok">→ Now: 😊 I didn't get that. Send like: Anjali cake 14 Apr 6pm</div>
+      </div>
+      <div class="bc-explain">_looks_like_order() only gated the AI call, not the whole parse flow. dateparser with PREFER_DATES_FROM=future spuriously returned tomorrow for any text.</div>
+      <div class="bc-fix">✅ Fix: _looks_like_order() check added at entry of handle_create_reminder before any parsing runs.</div>
+    </div>
+
+    <!-- 2 -->
+    <div class="break-card fixed">
+      <div class="bc-header">
+        <div class="bc-icon">🗑️</div>
+        <div class="bc-title">Gibberish saved as a valid order</div>
+        <span class="bc-status status-fixed">Fixed</span>
+      </div>
+      <div class="msg-box">
+        <div class="out">sjkjsnkjskjsdjsdjksddkc</div>
+        <div class="bad">✅ Saved! Task: sjkjsnkjskj · Due: 05 Apr 12:00 PM</div>
+        <div class="ok">→ Now: ❌ Couldn't understand that</div>
+      </div>
+      <div class="bc-explain">First vowel check failed — "lsdcshfuvhsifjvowkv" contains "u" and "o" so any() passed. Also question guard didn't catch it.</div>
+      <div class="bc-fix">✅ Fix: Stronger check — max consecutive consonant run ≤ 4 AND vowel ratio ≥ 10%. Both conditions must pass.</div>
+    </div>
+
+    <!-- 3 -->
+    <div class="break-card fixed">
+      <div class="bc-header">
+        <div class="bc-icon">⏰</div>
+        <div class="bc-title">"6pm" parsed as 12:00 PM</div>
+        <span class="bc-status status-fixed">Fixed</span>
+      </div>
+      <div class="msg-box">
+        <div class="out">Anjali cake 14 Apr 6pm</div>
+        <div class="bad">📅 Due: 14 Apr 2026 12:00 PM ← wrong!</div>
+        <div class="ok">→ Now: 📅 Due: 14 Apr 2026 6:00 PM</div>
+      </div>
+      <div class="bc-explain">SETTINGS = {"RELATIVE_BASE": datetime.now()} evaluated ONCE at module load. dateparser.parse("6pm", settings=stale_SETTINGS) returned None, so time fell back to 12:00.</div>
+      <div class="bc-fix">✅ Fix: _settings() function (called fresh each time) + parse_time_string() that parses times directly without dateparser.</div>
+    </div>
+
+    <!-- 4 -->
+    <div class="break-card fixed">
+      <div class="bc-header">
+        <div class="bc-icon">📝</div>
+        <div class="bc-title">Task name garbled with date words</div>
+        <span class="bc-status status-fixed">Fixed</span>
+      </div>
+      <div class="msg-box">
+        <div class="out">Send cake to Anjali on 14th April at 6pm</div>
+        <div class="bad">📝 Task: send cake to anjali on at 6pm ← date stripped, "on" left over</div>
+        <div class="ok">→ Now: 📝 Task: anjali cake (strip + task extractor)</div>
+      </div>
+      <div class="bc-explain">_strip_payment_tokens stripped "14th April" and "at 6pm" but left connector words like "on", "at". extract_task also returned the full sentence when result was too short.</div>
+      <div class="bc-fix">✅ Fix: Strip connector words after date removal. Task extractor now returns cleaned noun phrases.</div>
+    </div>
+
+    <!-- 5 -->
+    <div class="break-card fixed">
+      <div class="bc-header">
+        <div class="bc-icon">📅</div>
+        <div class="bc-title">Wrong year (2027 instead of 2026)</div>
+        <span class="bc-status status-fixed">Fixed</span>
+      </div>
+      <div class="msg-box">
+        <div class="out">Anjali cake 14 Apr 6pm</div>
+        <div class="bad">📅 Due: 14 Apr 2027 ← one year ahead!</div>
+        <div class="ok">→ Now: 📅 Due: 14 Apr 2026</div>
+      </div>
+      <div class="bc-explain">Stale RELATIVE_BASE frozen at server start time. dateparser thought "now" was months ago, so "future" preference pushed date into next year.</div>
+      <div class="bc-fix">✅ Fix: _settings() function returns fresh datetime.now() on every call.</div>
+    </div>
+
+    <!-- 6 -->
+    <div class="break-card fixed">
+      <div class="bc-header">
+        <div class="bc-icon">🕐</div>
+        <div class="bc-title">Reminders firing 5.5 hours late (UTC vs IST)</div>
+        <span class="bc-status status-fixed">Fixed</span>
+      </div>
+      <div class="msg-box">
+        <div class="out">Set for 8am IST</div>
+        <div class="bad">⏰ Reminder triggered at 1:30pm IST ← 5.5 hrs late</div>
+        <div class="ok">→ Now: timedatectl set-timezone Asia/Kolkata on EC2</div>
+      </div>
+      <div class="bc-explain">EC2 default timezone is UTC. All datetime comparisons in reminder_worker used server time (UTC), not IST.</div>
+      <div class="bc-fix">✅ Fix: sudo timedatectl set-timezone Asia/Kolkata + SET TIME ZONE in DB connection.</div>
+    </div>
+
+    <!-- 7 -->
+    <div class="break-card partial">
+      <div class="bc-header">
+        <div class="bc-icon">🔄</div>
+        <div class="bc-title">Stale state — new order treated as notification reply</div>
+        <span class="bc-status status-partial">Partial</span>
+      </div>
+      <div class="msg-box">
+        <div class="in">[Bot: When to notify client?]</div>
+        <div class="out">Anjali cake 15 Apr 6pm</div>
+        <div class="bad">❌ "Anjali cake 15 Apr 6pm" parsed as a time → error or bad state</div>
+        <div class="ok">→ Partial: detect full order message in state handlers, clear state first</div>
+      </div>
+      <div class="bc-explain">State machine has no "new order breaks current state" logic. Any state handler receives the message regardless of its content.</div>
+      <div class="bc-fix">⚠️ Partial: State handlers check for full order pattern and re-route. But edge cases remain for templates with conflicting content.</div>
+    </div>
+
+    <!-- 8 -->
+    <div class="break-card">
+      <div class="bc-header">
+        <div class="bc-icon">🕒</div>
+        <div class="bc-title">Ambiguous time — "at 3" (3am or 3pm?)</div>
+        <span class="bc-status status-open">Open</span>
+      </div>
+      <div class="msg-box">
+        <div class="out">Anjali cake 14 Apr at 3</div>
+        <div class="bad">📅 Due: 14 Apr 3:00 PM (assumed PM — may be wrong)</div>
+        <div class="ok">→ Should ask: "3am or 3pm?" when ambiguous</div>
+      </div>
+      <div class="bc-explain">PM inference is applied for hours 1–7 ("at 3" → "at 3pm"). But 8am appointments (e.g. "at 8") are left ambiguous and may default to PM.</div>
+      <div class="bc-fix">🔴 Open: Confirm step now shows time — vendor can catch this before saving.</div>
+    </div>
+
+    <!-- 9 -->
+    <div class="break-card">
+      <div class="bc-header">
+        <div class="bc-icon">🗣️</div>
+        <div class="bc-title">Hindi / mixed language order</div>
+        <span class="bc-status status-partial">Partial</span>
+      </div>
+      <div class="msg-box">
+        <div class="out">Anjali ka cake 14 April 6 baje</div>
+        <div class="bad">Local parser misses "6 baje" → falls to AI</div>
+        <div class="ok">→ AI correctly returns 18:00, but costs a call</div>
+      </div>
+      <div class="bc-explain">"baje" (meaning o'clock in Hindi) not in local regex. "kal" (tomorrow), "aaj" (today) also not handled locally.</div>
+      <div class="bc-fix">⚠️ Partial: AI handles it correctly within rate limits. Local parser needs Hindi time words added.</div>
+    </div>
+
+    <!-- 10 -->
+    <div class="break-card">
+      <div class="bc-header">
+        <div class="bc-icon">💰</div>
+        <div class="bc-title">Message with only a number</div>
+        <span class="bc-status status-open">Open</span>
+      </div>
+      <div class="msg-box">
+        <div class="out">1200</div>
+        <div class="bad">→ No date/time → template sent — confusing!</div>
+        <div class="ok">→ Should ask: "What is this for? Payment update or new order?"</div>
+      </div>
+      <div class="bc-explain">A vendor might send just "1200" to record a payment or update a balance. The bot doesn't know which order it relates to.</div>
+      <div class="bc-fix">🔴 Open: Need a "just a number" guard and context-aware prompt.</div>
+    </div>
+
+    <!-- 11 -->
+    <div class="break-card">
+      <div class="bc-header">
+        <div class="bc-icon">📋</div>
+        <div class="bc-title">Partial template fill — missing date</div>
+        <span class="bc-status status-open">Open</span>
+      </div>
+      <div class="msg-box">
+        <div class="out">Task: Anjali cake
+Date:
+Customer Phone:
+Total: 1200</div>
+        <div class="bad">→ Template re-sent → vendor confused, loops</div>
+        <div class="ok">→ Should say: "I see Date is blank — what date is the order for?"</div>
+      </div>
+      <div class="bc-explain">When vendor sends template back with Date field empty, the bot re-sends the full template. After 2-3 tries, vendor gives up.</div>
+      <div class="bc-fix">🔴 Open: Detect which specific field is missing and ask for just that one field.</div>
+    </div>
+
+    <!-- 12 -->
+    <div class="break-card">
+      <div class="bc-header">
+        <div class="bc-icon">📅</div>
+        <div class="bc-title">Past date sent — no warning</div>
+        <span class="bc-status status-open">Open</span>
+      </div>
+      <div class="msg-box">
+        <div class="out">Anjali cake 1 Jan 6pm</div>
+        <div class="bad">✅ Saved! Due: 01 Jan 2026 6:00 PM ← already passed!</div>
+        <div class="ok">→ Should warn: "That date is in the past. Did you mean 2027?"</div>
+      </div>
+      <div class="bc-explain">No validation that due_dt is in the future. Reminder is set but fires immediately (or is skipped if worker already passed it).</div>
+      <div class="bc-fix">🔴 Open: Add past-date warning in confirm preview step.</div>
+    </div>
+
+    <!-- 13 -->
+    <div class="break-card fixed">
+      <div class="bc-header">
+        <div class="bc-icon">🤖</div>
+        <div class="bc-title">AI called for every message — cost abuse</div>
+        <span class="bc-status status-fixed">Fixed</span>
+      </div>
+      <div class="msg-box">
+        <div class="out">[sends 20 messages rapidly]</div>
+        <div class="bad">→ 20 OpenAI API calls, $$ wasted</div>
+        <div class="ok">→ Now: rate limited per plan (trial=5/day, basic=15/day)</div>
+      </div>
+      <div class="bc-explain">No guards on the AI call. Any message would trigger OpenAI regardless of content, plan, or frequency.</div>
+      <div class="bc-fix">✅ Fix: _looks_like_order filter + per-plan daily limits + 60s cooldown + 300-char input cap.</div>
+    </div>
+
+    <!-- 14 -->
+    <div class="break-card">
+      <div class="bc-header">
+        <div class="bc-icon">🔢</div>
+        <div class="bc-title">"paid" command without a name</div>
+        <span class="bc-status status-open">Open</span>
+      </div>
+      <div class="msg-box">
+        <div class="out">paid</div>
+        <div class="bad">→ Matches nothing, no feedback to vendor</div>
+        <div class="ok">→ Should say: "Which order? Reply: paid Anjali cake"</div>
+      </div>
+      <div class="bc-explain">"paid" without a name is a valid command that hits the handler but has nothing to fuzzy-match against.</div>
+      <div class="bc-fix">🔴 Open: Detect empty name after "paid" and show the unpaid list as a prompt.</div>
+    </div>
+
+    <!-- 15 -->
+    <div class="break-card partial">
+      <div class="bc-header">
+        <div class="bc-icon">📞</div>
+        <div class="bc-title">Customer phone not shown in confirmation</div>
+        <span class="bc-status status-partial">Partial</span>
+      </div>
+      <div class="msg-box">
+        <div class="out">Anjali cake 14 Apr 6pm 9591914432 total 1200</div>
+        <div class="bad">Bot didn't show customer number in original confirmation</div>
+        <div class="ok">→ Now shown in confirm preview and saved confirmation</div>
+      </div>
+      <div class="bc-explain">Vendor couldn't verify if the customer phone was captured correctly. No phone shown in the save confirmation.</div>
+      <div class="bc-fix">⚠️ Partial: Shown in preview. Still need to confirm parsing is correct for all phone formats (with/without +91).</div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════ COMMANDS ═══════════════════════════════════════ -->
+<div id="commands" class="section">
+  <div class="grid">
+    <div class="card">
+      <div class="label">Command</div>
+      <div class="title">reminders</div>
+      <div class="desc">Lists all upcoming reminders ordered by due date. Shows task, date, customer phone, balance.</div>
+      <div class="tags"><span class="tag blue">Stateless</span></div>
+    </div>
+    <div class="card">
+      <div class="label">Command</div>
+      <div class="title">unpaid</div>
+      <div class="desc">Lists all orders where balance (total − advance) is still outstanding. Shows customer phone and amount due.</div>
+      <div class="tags"><span class="tag yellow">Stateless</span></div>
+    </div>
+    <div class="card">
+      <div class="label">Command</div>
+      <div class="title">paid &lt;name&gt;</div>
+      <div class="desc">Marks the matching order's balance as collected. Fuzzy-matches the name against open orders.</div>
+      <div class="tags"><span class="tag green">Stateless</span> <span class="tag red">Bug: bare "paid" gives no feedback</span></div>
+    </div>
+    <div class="card">
+      <div class="label">Command</div>
+      <div class="title">earnings</div>
+      <div class="desc">Monthly earnings summary — current month + last month. Total collected vs outstanding.</div>
+      <div class="tags"><span class="tag blue">Stateless</span></div>
+    </div>
+    <div class="card">
+      <div class="label">Command</div>
+      <div class="title">how</div>
+      <div class="desc">Shows example messages the vendor can copy-paste to add orders, set reminders and track payments.</div>
+      <div class="tags"><span class="tag purple">Stateless</span></div>
+    </div>
+    <div class="card">
+      <div class="label">Command</div>
+      <div class="title">help</div>
+      <div class="desc">Full command reference list with one-line descriptions of each command.</div>
+      <div class="tags"><span class="tag purple">Stateless</span></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════ STATES ═══════════════════════════════════════ -->
+<div id="states" class="section">
+  <div class="grid">
+    <div class="card">
+      <div class="label">State</div>
+      <div class="title">awaiting_confirm</div>
+      <div class="desc">Bot shows parsed preview. Waiting for vendor to confirm or edit.</div>
+      <div class="tags"><span class="tag green">yes → save</span><span class="tag yellow">edit → template</span></div>
+    </div>
+    <div class="card">
+      <div class="label">State</div>
+      <div class="title">awaiting_template</div>
+      <div class="desc">Waiting for vendor to fill in the copy-paste template (task, date, phone, total, advance).</div>
+      <div class="tags"><span class="tag blue">parse reply</span></div>
+    </div>
+    <div class="card">
+      <div class="label">State</div>
+      <div class="title">just_saved</div>
+      <div class="desc">Order saved without payment info. Waiting for payment details or skip.</div>
+      <div class="tags"><span class="tag green">total X adv Y</span><span class="tag yellow">skip</span><span class="tag purple">edit</span></div>
+    </div>
+    <div class="card">
+      <div class="label">State</div>
+      <div class="title">awaiting_payment_notify</div>
+      <div class="desc">After skipping payment — asking if vendor wants to notify the client. Waiting for phone or skip.</div>
+      <div class="tags"><span class="tag green">phone number</span><span class="tag yellow">skip</span></div>
+    </div>
+    <div class="card">
+      <div class="label">State</div>
+      <div class="title">awaiting_payment_notify_time</div>
+      <div class="desc">Phone captured. Waiting for when to send the customer notification.</div>
+      <div class="tags"><span class="tag green">12 Apr 3pm</span><span class="tag yellow">skip</span></div>
+    </div>
+    <div class="card">
+      <div class="label">State</div>
+      <div class="title">awaiting_notify_customer</div>
+      <div class="desc">Payment saved. Asking when to notify the customer.</div>
+      <div class="tags"><span class="tag green">date+time</span><span class="tag yellow">skip</span></div>
+    </div>
+    <div class="card">
+      <div class="label">State</div>
+      <div class="title">awaiting_time</div>
+      <div class="desc">Order saved without a time. Waiting for vendor to send a time.</div>
+      <div class="tags"><span class="tag blue">6pm · 3:30pm · 18:00</span></div>
+    </div>
+    <div class="card">
+      <div class="label">State</div>
+      <div class="title">awaiting_reminder_time</div>
+      <div class="desc">Asking if vendor wants a custom reminder time instead of the 2-hour default.</div>
+      <div class="tags"><span class="tag green">2hrs before</span><span class="tag yellow">skip</span></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════ WORKERS ═══════════════════════════════════════ -->
+<div id="workers" class="section">
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#6366f1', 'primaryTextColor': '#f1f5f9', 'lineColor': '#64748b', 'fontFamily': 'system-ui'}}}%%
+flowchart LR
+    subgraph RW ["⏰ Reminder Worker  (every 30s)"]
+      RW1[Query DB\nstatus=pending\nreminder_time ≤ NOW IST] --> RW2{Any due?}
+      RW2 -->|Yes| RW3[Send vendor WhatsApp\n⏰ Task · Due date · Balance due\nReply unpaid to see all]
+      RW3 --> RW4[Mark reminder completed]
+      RW2 -->|No| RW5[Sleep 30s]
+    end
+
+    subgraph CW ["📲 Customer Notification Worker  (every 30s)"]
+      CW1[Query DB\ncustomer_notify_at ≤ NOW IST\nnotified=false] --> CW2{Any due?}
+      CW2 -->|Yes| CW3[Send customer WhatsApp\nYour booking is confirmed!]
+      CW3 --> CW4[Mark notified = true]
+      CW2 -->|No| CW5[Sleep 30s]
+    end
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════ MESSAGE PREVIEW ═══════════════════════════════════════ -->
+<div id="preview" class="section">
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="bar">
+        <div class="avatar">🤖</div>
+        <div>
+          <div class="name">Seller Assistant</div>
+          <div class="status">● online</div>
+        </div>
+      </div>
+      <div class="msg-list">
+
+        <div class="bubble out">Anjali cake 14 Apr 6pm total 1200 advance 300</div>
+        <div class="time-label">parsed locally ✓</div>
+
+        <div class="bubble in">📋 <b>Got it! Is this right?</b>
+
+📝 Anjali Cake
+📅 Due: 14 Apr 2026 6:00 PM
+⏰ Reminder: 14 Apr 4:00 PM
+💰 Rs.1200 · Rs.300 advance · Rs.900 due
+
+Reply <b>yes</b> to save · <b>edit</b> to change</div>
+
+        <div class="bubble out">yes</div>
+        <div class="time-label">saved ✓</div>
+
+        <div class="bubble in">✅ <b>Saved!</b>
+
+📲 Want to notify your client?
+Reply their number or <b>skip</b></div>
+
+        <div class="bubble out">9876543210</div>
+
+        <div class="bubble in">📅 When should I notify them?
+e.g. <b>14 Apr 10am</b> · or <b>skip</b></div>
+
+        <div class="bubble out">14 Apr 10am</div>
+
+        <div class="bubble in">✅ <b>All saved!</b>
+
+📝 Anjali Cake · 14 Apr 6:00 PM
+💰 Rs.900 still due
+📲 Client notified on 14 Apr 10:00 AM
+
+Reply <b>reminders</b> · <b>unpaid</b> · <b>how</b></div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+  function show(id, btn) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    btn.classList.add('active');
+  }
+</script>
+</body>
+</html>

@@ -61,6 +61,10 @@ def handle_create_reminder(user_id: str, phone: str, text: str):
         )
         return
 
+    # ── Check if this is vendor's very first order ───────────────────────
+    from repositories.user_repository import get_reminder_count
+    is_first_order = get_reminder_count(phone) == 0
+
     extracted      = extract_reminder_details(text, phone)
     task           = extracted.get("task") or text
     due_date       = extracted.get("date")
@@ -100,7 +104,8 @@ def handle_create_reminder(user_id: str, phone: str, text: str):
         phone, user_id, task, due_date, due_time, due_dt, due_display,
         customer_phone, total, advance,
         reminder_offset=reminder_offset,
-        customer_notify_option=customer_notify_option
+        customer_notify_option=customer_notify_option,
+        is_first_order=is_first_order
     )
 
 
@@ -203,7 +208,8 @@ def _show_confirm_preview(
     due_display: str,
     customer_phone, total, advance,
     reminder_offset=None,
-    customer_notify_option=None
+    customer_notify_option=None,
+    is_first_order=False
 ):
     """Show parsed order data and ask vendor to confirm before saving anything."""
     # Pre-calculate reminder time so it shows in preview
@@ -255,6 +261,7 @@ def _show_confirm_preview(
         "advance":               advance,
         "customer_notify_option": customer_notify_option,
         "due_dt":                due_dt_iso,
+        "is_first_order":        is_first_order,
     })
 
     send_whatsapp_message(phone, "\n".join(lines), show_help=False)
@@ -266,7 +273,8 @@ def _fast_path_with_date(
     due_display: str,
     customer_phone, total, advance,
     reminder_offset=None,
-    customer_notify_option=None
+    customer_notify_option=None,
+    is_first_order=False
 ):
     """
     Called once we know due_date + due_time.
@@ -353,15 +361,28 @@ def _fast_path_with_date(
             f"💰 Rs.{adv_amount:.0f} advance  ·  Rs.{balance:.0f} balance pending"
             if balance > 0 else "💰 Fully paid ✅"
         )
-        send_whatsapp_message(
-            phone,
-            f"✅ *All saved!*\n\n"
-            f"📝 {task}\n"
-            f"📅 Due: {due_display}\n"
-            f"⏰ Reminder: {reminder_display}\n"
-            f"{payment_line}\n\n"
-            f"Reply *unpaid* to see pending balances  ·  *edit* to update this"
-        )
+        if is_first_order:
+            send_whatsapp_message(
+                phone,
+                f"🎉 *First booking saved!*\n\n"
+                f"📝 {task}\n"
+                f"📅 Due: {due_display}\n"
+                f"⏰ I'll remind you on *{reminder_display}*\n"
+                f"{payment_line}\n\n"
+                f"You'll get a WhatsApp message when it's time — no app needed.\n\n"
+                f"Reply *unpaid* to see pending balances  ·  *edit* to update this",
+                show_help=False
+            )
+        else:
+            send_whatsapp_message(
+                phone,
+                f"✅ *All saved!*\n\n"
+                f"📝 {task}\n"
+                f"📅 Due: {due_display}\n"
+                f"⏰ Reminder: {reminder_display}\n"
+                f"{payment_line}\n\n"
+                f"Reply *unpaid* to see pending balances  ·  *edit* to update this"
+            )
         return
 
     # ── Phone known, no total → ask notify first ──────────────────────
@@ -389,15 +410,28 @@ def _fast_path_with_date(
         "due_time": due_time,
         "reminder_display": reminder_display,
     })
-    send_whatsapp_message(
-        phone,
-        f"✅ *Saved!*\n\n"
-        f"📝 {task}\n"
-        f"📅 Due: {due_display}\n"
-        f"⏰ Reminder: {reminder_display}{label_str}\n\n"
-        f"💰 Want to track what's paid and what's still due?\n"
-        f"_total 1200 advance 300_  ·  or *skip*"
-    )
+    if is_first_order:
+        send_whatsapp_message(
+            phone,
+            f"🎉 *First booking saved!*\n\n"
+            f"📝 {task}\n"
+            f"📅 Due: {due_display}\n"
+            f"⏰ I'll remind you on *{reminder_display}*{label_str}\n\n"
+            f"You'll get a WhatsApp message when it's time — no app needed.\n\n"
+            f"💰 Want to also track payment?\n"
+            f"_total 1200 advance 300_  ·  or *skip*",
+            show_help=False
+        )
+    else:
+        send_whatsapp_message(
+            phone,
+            f"✅ *Saved!*\n\n"
+            f"📝 {task}\n"
+            f"📅 Due: {due_display}\n"
+            f"⏰ Reminder: {reminder_display}{label_str}\n\n"
+            f"💰 Want to track what's paid and what's still due?\n"
+            f"_total 1200 advance 300_  ·  or *skip*"
+        )
 
 
 def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool:
@@ -536,6 +570,7 @@ def _handle_awaiting_confirm(user_id: str, phone: str, text: str, state: dict) -
             state.get("customer_phone"), state.get("total"), state.get("advance"),
             reminder_offset=state.get("reminder_offset"),
             customer_notify_option=state.get("customer_notify_option"),
+            is_first_order=state.get("is_first_order", False),
         )
         return True
 

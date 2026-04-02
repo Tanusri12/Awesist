@@ -139,19 +139,29 @@ def process_message(data: dict):
                     show_help=False
                 )
             else:
-                # No active state — show usage prompt with what happens after saving
-                send_whatsapp_message(
-                    phone,
-                    "Hi! 👋\n\n"
-                    "Never forget a booking again — just send it to me and I'll remind you automatically.\n\n"
-                    "📝 Save a booking like this:\n"
-                    "Anjali booking 13 Apr 5pm\n"
-                    "⏰ Reminder: 13 Apr 3:00 PM (2 hrs before)\n\n"
-                    "💰 Track payment:\n"
-                    "Anjali booking 13 Apr 5pm total 1200 advance 300\n\n"
-                    "📲 Notify your client:\n"
-                    "Anjali booking 13 Apr 5pm 9876543210"
-                )
+                # No active state — first-time vs returning vendor
+                from repositories.user_repository import get_reminder_count
+                count = get_reminder_count(phone)
+                if count == 0:
+                    # First time — one clear example, no overwhelming options
+                    send_whatsapp_message(
+                        phone,
+                        "Hi! 👋\n\n"
+                        "Send me any booking and I'll remind you automatically.\n\n"
+                        "Try this now:\n"
+                        "*Anjali cake 14 Apr 6pm*\n\n"
+                        "I'll confirm what I understood before saving anything.",
+                        show_help=False
+                    )
+                else:
+                    # Returning vendor — quick reference
+                    send_whatsapp_message(
+                        phone,
+                        "Hi! 👋\n\n"
+                        "Reply *reminders* · *unpaid* · *earnings*\n"
+                        "Or just send a new booking to save it.",
+                        show_help=False
+                    )
             return
 
         # ── Explicit commands (help, reminders, delete, cancel) ───────────

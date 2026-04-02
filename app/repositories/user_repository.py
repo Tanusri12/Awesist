@@ -222,6 +222,22 @@ def get_user_plan(phone: str) -> str:
         return "trial"
 
 
+def get_reminder_count(phone: str) -> int:
+    """Return total number of reminders ever saved by this user."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) FROM reminders WHERE user_id = %s",
+            (phone,)
+        )
+        row = cursor.fetchone()
+        return row[0] if row else 0
+    finally:
+        cursor.close()
+        release_connection(conn)
+
+
 def get_summary_users():
     conn = get_connection()
     try:
