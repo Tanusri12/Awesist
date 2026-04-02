@@ -116,6 +116,16 @@ def _normalise_text(text: str) -> str:
     text = re.sub(r'\b(\d{1,2})\.([0-5]\d)\s*(am|pm)\b', r'\1:\2\3', text, flags=re.I)
     text = re.sub(r'\b([01]?\d|2[0-3])\.([0-5]\d)\b(?!\d)', r'\1:\2', text)
 
+    # Morning context: "morning at 11" → "morning at 11am" (hours 8–12 that PM inference misses)
+    if re.search(r'\bmorning\b', text, re.I):
+        def _infer_am(m):
+            h = int(m.group(1))
+            mins = m.group(2) or ""
+            if 8 <= h <= 12:
+                return f"at {h}{mins}am"
+            return m.group(0)
+        text = re.sub(r'\bat\s+([1-9]|1[0-2])(:\d{2})?\b(?!(?::\d{2})?\s*(?:am|pm))', _infer_am, text, flags=re.I)
+
     # "at X" PM inference: hours 1–7 without am/pm → almost always PM in business context
     # "at 8", "at 9" left alone — ambiguous (could be morning appointment)
     def _infer_pm(m):
@@ -371,7 +381,9 @@ def _strip_payment_tokens(text: str, payment_fields: dict) -> str:
     t = re.sub(r'\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{1,2}(?:st|nd|rd|th)?\b', '', t, flags=re.I)
     t = re.sub(r'\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b', '', t, flags=re.I)
     t = re.sub(r'\b(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)\b', '', t, flags=re.I)
-    t = re.sub(r'\b(?:tomorrow|today|tonight|morning|evening|next\s+\w+)\b', '', t, flags=re.I)
+    # Strip bare "at N" or "at N:MM" that have no am/pm (e.g. "at 11", "at 11:30")
+    t = re.sub(r'\bat\s+\d{1,2}(?::\d{2})?\b', '', t, flags=re.I)
+    t = re.sub(r'\b(?:day\s+after\s+tomorrow|tomorrow|today|tonight|morning|afternoon|evening|next\s+\w+|end\s+of\s+(?:the\s+)?(?:week|month))\b', '', t, flags=re.I)
     # Strip bare ordinals ONLY (13th, 1st, 2nd) — NOT bare numbers like "8" which are quantities
     t = re.sub(r'\b\d{1,2}(?:st|nd|rd|th)\b', '', t)
 
@@ -405,26 +417,80 @@ def _extract_payment_fields(text: str) -> dict:
         float(m.group(1) or m.group(2))
         for m in re.finditer(money_pattern, text, re.I)
     ]
+    # Bare integers (3+ digits, no currency symbol) as fallback pool
+    bare_ints = [float(m.group()) for m in re.finditer(r'\b(\d{3,})\b', text)]
 
-    # advance keyword: "advance 300", "300 advance", "300 paid", "paid 300", "300 diya"
+    # --- Compound patterns (try these first, before individual keyword search) ---
+
+    # "200 paid 800 baaki/pending/due" → advance=200, pending=800
+    compound_paid_pending = re.search(
+        r'(?:rs\.?\s*|₹)?(\d+(?:\.\d+)?)\s*(?:paid|advance|adv|deposit)'
+        r'\s+(?:rs\.?\s*|₹)?(\d+(?:\.\d+)?)\s*(?:pending|due|balance|remaining|baaki|baki)',
+        text, re.I
+    )
+    # "500 advance 1500 total" / "300 paid 1200 total" → advance=500, total=1500
+    compound_adv_total = re.search(
+        r'(?:rs\.?\s*|₹)?(\d+(?:\.\d+)?)\s*(?:advance|adv|paid|deposit)'
+        r'\s+(?:rs\.?\s*|₹)?(\d+(?:\.\d+)?)\s*(?:total|tot)',
+        text, re.I
+    )
+
+    # advance / paid keyword: "advance 300", "300 advance", "300 paid", "paid 300", "300 diya"
     advance_val = None
-    adv_pattern = r'(?:advance|adv|paid|deposit|diya(?:\s+hai)?)\s*[:\-]?\s*(?:rs\.?\s*|₹)?(\d+(?:\.\d+)?)'
-    adv_match = re.search(adv_pattern, text, re.I)
-    if not adv_match:
-        adv_pattern2 = r'(?:rs\.?\s*|₹)?(\d+(?:\.\d+)?)\s*(?:advance|adv|paid|deposit|diya)'
-        adv_match = re.search(adv_pattern2, text, re.I)
-    if adv_match:
-        advance_val = float(adv_match.group(1))
+    pending_val = None
 
-    # total keyword: "total 850", "850 total", "1200 ka", "order 1200"
+    # "N pending/baaki M paid/advance" → advance=M, pending=N  (reverse of compound_paid_pending)
+    compound_pending_paid = re.search(
+        r'(?:rs\.?\s*|₹)?(\d+(?:\.\d+)?)\s*(?:pending|due|balance|remaining|baaki|baki)'
+        r'\s+(?:rs\.?\s*|₹)?(\d+(?:\.\d+)?)\s*(?:paid|advance|adv|deposit)',
+        text, re.I
+    )
+
+    if compound_paid_pending:
+        advance_val = float(compound_paid_pending.group(1))
+        pending_val = float(compound_paid_pending.group(2))
+    elif compound_pending_paid:
+        pending_val = float(compound_pending_paid.group(1))
+        advance_val = float(compound_pending_paid.group(2))
+    elif compound_adv_total:
+        advance_val = float(compound_adv_total.group(1))
+        # total_val set below from compound_adv_total.group(2)
+    else:
+        # Keyword-first for advance: "advance 300", fallback to "300 advance"
+        adv_pattern = r'(?:advance|adv|paid|deposit|diya(?:\s+hai)?)\s*[:\-]?\s*(?:rs\.?\s*|₹)?(\d+(?:\.\d+)?)'
+        adv_match = re.search(adv_pattern, text, re.I)
+        if not adv_match:
+            adv_pattern2 = r'(?:rs\.?\s*|₹)?(\d+(?:\.\d+)?)\s*(?:advance|adv|paid|deposit|diya)'
+            adv_match = re.search(adv_pattern2, text, re.I)
+        if adv_match:
+            advance_val = float(adv_match.group(1))
+
+        # pending / due / balance keyword: "pending 800", "800 pending", "due 500", "baaki 400"
+        pend_pattern = r'(?:pending|due|balance|remaining|baaki|baki)\s*[:\-]?\s*(?:rs\.?\s*|₹)?(\d+(?:\.\d+)?)'
+        pend_match = re.search(pend_pattern, text, re.I)
+        if not pend_match:
+            pend_pattern2 = r'(?:rs\.?\s*|₹)?(\d+(?:\.\d+)?)\s*(?:pending|due|balance|remaining|baaki|baki)'
+            pend_match = re.search(pend_pattern2, text, re.I)
+        if pend_match:
+            pending_val = float(pend_match.group(1))
+
+    # total keyword: prefer "N total" (number before keyword) over "total N" to avoid
+    # ambiguity in "1200 total 300 advance" (correct: 1200 is total, not 300)
     total_val = None
-    tot_pattern = r'(?:total|tot|amount|order|charge)\s*[:\-]?\s*(?:rs\.?\s*|₹)?(\d+(?:\.\d+)?)'
-    tot_match = re.search(tot_pattern, text, re.I)
-    if not tot_match:
+    if compound_adv_total:
+        total_val = float(compound_adv_total.group(2))
+    else:
         tot_pattern2 = r'(?:rs\.?\s*|₹)?(\d+(?:\.\d+)?)\s*(?:total|tot|ka\s+order)'
         tot_match = re.search(tot_pattern2, text, re.I)
-    if tot_match:
-        total_val = float(tot_match.group(1))
+        if not tot_match:
+            tot_pattern = r'(?:total|tot|amount|order|charge)\s*[:\-]?\s*(?:rs\.?\s*|₹)?(\d+(?:\.\d+)?)'
+            tot_match = re.search(tot_pattern, text, re.I)
+        if tot_match:
+            total_val = float(tot_match.group(1))
+
+    # "paid X and pending Y" → total = X + Y, advance = X
+    if total_val is None and advance_val is not None and pending_val is not None:
+        total_val = advance_val + pending_val
 
     # if no labelled total but exactly two distinct money amounts found → larger = total, smaller = advance
     if total_val is None and advance_val is None and len(money_matches) == 2:
@@ -432,6 +498,21 @@ def _extract_payment_fields(text: str) -> dict:
         advance_val = min(money_matches)
     elif total_val is None and len(money_matches) == 1 and advance_val is None:
         total_val = money_matches[0]
+    # Bare integer fallback: "850" alone → total
+    elif total_val is None and advance_val is None and not money_matches and len(bare_ints) == 1:
+        total_val = bare_ints[0]
+    # Two bare integers, no keywords → larger=total, smaller=advance
+    elif total_val is None and advance_val is None and not money_matches and len(bare_ints) == 2:
+        total_val   = max(bare_ints)
+        advance_val = min(bare_ints)
+
+    # "fully paid 1500" / "full payment 1500" → advance = total (everything paid)
+    # Run after all fallbacks so total_val is already resolved
+    if re.search(r'\bfully\s+paid\b|\bfull\s+payment\b|\bpura\s+paid\b|\bsab\s+paid\b', text, re.I):
+        if total_val is not None and advance_val is None:
+            advance_val = total_val
+        elif advance_val is not None and total_val is None:
+            total_val = advance_val
 
     if total_val is not None:
         result["total"] = total_val

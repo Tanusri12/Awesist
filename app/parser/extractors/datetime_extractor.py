@@ -106,14 +106,17 @@ def parse_day_periods(text):
 
         if f"day after tomorrow {word}" in text:
             dt = now + timedelta(days=2)
-            return {"date": dt.date().isoformat(), "time": default_time}
+            explicit = parse_time_string(detect_time(text))
+            return {"date": dt.date().isoformat(), "time": explicit or default_time}
 
         if f"tomorrow {word}" in text:
             dt = now + timedelta(days=1)
-            return {"date": dt.date().isoformat(), "time": default_time}
+            explicit = parse_time_string(detect_time(text))
+            return {"date": dt.date().isoformat(), "time": explicit or default_time}
 
         if word in text:
-            return {"date": now.date().isoformat(), "time": default_time}
+            explicit = parse_time_string(detect_time(text))
+            return {"date": now.date().isoformat(), "time": explicit or default_time}
 
     return None
 
