@@ -502,11 +502,8 @@ def route_intent(user_id: str, phone: str, text: str):
         from repositories.reminder_repository import get_most_recent_reminder
         recent = get_most_recent_reminder(user_id)
         if recent:
-            # Restore minimal state so the edit handler has a reminder_id to work with
-            from handlers.state_manager import set_state
-            set_state(phone, {"step": "just_saved", "reminder_id": recent["id"], "task": recent.get("task", "")})
-            from handlers.reminder_handler import handle_reminder
-            handle_reminder(user_id, phone, text_lower)
+            synthetic_state = {"step": "just_saved", "reminder_id": recent["id"], "task": recent.get("task", "")}
+            handle_reminder_state(user_id, phone, text_lower, synthetic_state)
         else:
             send_whatsapp_message(
                 phone,

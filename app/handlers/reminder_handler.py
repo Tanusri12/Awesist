@@ -1321,17 +1321,22 @@ def _handle_awaiting_payment_notify_time(user_id: str, phone: str, text: str, st
     from parser.extractors.datetime_extractor import extract_datetime, detect_time, parse_time_string
     from ai_extractor import _normalise_text
 
+    from datetime import datetime as _dt, date as _date
     dt_result = extract_datetime(_normalise_text(t))
     got_date = dt_result.get("date")
     got_time = dt_result.get("time")
 
+    # Only treat got_date as a specific date if it's genuinely different from today.
+    # "today at 6pm" → got_date=today — user just means the time, apply to due_dt.
+    today_iso = _date.today().isoformat()
+    specific_date = got_date and got_date != today_iso
+
     if got_time:
-        if got_date:
+        if specific_date:
             # User gave a specific date+time (e.g. "2nd april 6:25pm")
-            from datetime import datetime as _dt
             notify_at = _dt.fromisoformat(f"{got_date} {got_time}:00")
         elif due_dt:
-            # Time only — apply to due date
+            # Time only (or "today at Xpm") — apply to due date
             hour, minute = int(got_time[:2]), int(got_time[3:])
             notify_at = due_dt.replace(hour=hour, minute=minute, second=0, microsecond=0)
     else:
