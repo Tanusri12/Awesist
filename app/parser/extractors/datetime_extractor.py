@@ -1,4 +1,5 @@
 import re
+import calendar
 import dateparser
 
 from datetime import datetime, timedelta
@@ -103,21 +104,16 @@ def parse_day_periods(text):
 
     for word, default_time in periods.items():
 
+        if f"day after tomorrow {word}" in text:
+            dt = now + timedelta(days=2)
+            return {"date": dt.date().isoformat(), "time": default_time}
+
         if f"tomorrow {word}" in text:
-
             dt = now + timedelta(days=1)
-
-            return {
-                "date": dt.date().isoformat(),
-                "time": default_time
-            }
+            return {"date": dt.date().isoformat(), "time": default_time}
 
         if word in text:
-
-            return {
-                "date": now.date().isoformat(),
-                "time": default_time
-            }
+            return {"date": now.date().isoformat(), "time": default_time}
 
     return None
 
@@ -169,6 +165,41 @@ def parse_next_month(text):
     day = min(now.day, [31,28+int(year%4==0 and (year%100!=0 or year%400==0)),
                          31,30,31,30,31,31,30,31,30,31][month-1])
     dt = datetime(year, month, day)
+
+    return {
+        "date": dt.date().isoformat(),
+        "time": None
+    }
+
+
+# --------------------------------------------------
+# Handle "end of month" / "end of week"
+# --------------------------------------------------
+
+def parse_end_of_month(text):
+    if "end of month" not in text and "end of the month" not in text:
+        return None
+
+    now = datetime.now()
+    last_day = calendar.monthrange(now.year, now.month)[1]
+    dt = datetime(now.year, now.month, last_day)
+
+    return {
+        "date": dt.date().isoformat(),
+        "time": None
+    }
+
+
+def parse_end_of_week(text):
+    if "end of week" not in text and "end of the week" not in text:
+        return None
+
+    now = datetime.now()
+    # End of week = coming Sunday (weekday 6); if today IS Sunday stay on today
+    days_until_sunday = (6 - now.weekday()) % 7
+    if days_until_sunday == 0:
+        days_until_sunday = 7   # next Sunday, not today
+    dt = now + timedelta(days=days_until_sunday)
 
     return {
         "date": dt.date().isoformat(),
@@ -404,9 +435,11 @@ def extract_datetime(text):
     text = text.lower().strip()
 
     parsers = [
+        parse_day_periods,       # first — handles "day after tomorrow morning", "tomorrow evening", "tonight" etc.
         parse_day_after_tomorrow,
-        parse_day_periods,       # must be before parse_tomorrow — handles "tomorrow morning/evening" etc.
         parse_tomorrow,
+        parse_end_of_month,
+        parse_end_of_week,
         parse_next_month,        # must be before parse_next_week
         parse_next_week,
         parse_day_of_month,

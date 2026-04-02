@@ -760,6 +760,44 @@ def test_relative_dates():
         r = extract_datetime(text)
         check(sec, f"next-month: {text!r}", text, exp_date, r.get("date"))
 
+    # ── end of month ──────────────────────────────────────────────────────────
+    import calendar as _cal
+    last_day = _cal.monthrange(today.year, today.month)[1]
+    eom = date(today.year, today.month, last_day)
+    eom_cases = [
+        ("end of month",              eom.isoformat()),
+        ("end of the month",          eom.isoformat()),
+        ("deliver end of month",      eom.isoformat()),
+        ("payment end of the month",  eom.isoformat()),
+    ]
+    for text, exp_date in eom_cases:
+        r = extract_datetime(text)
+        check(sec, f"end-of-month: {text!r}", text, exp_date, r.get("date"))
+
+    # ── end of week ───────────────────────────────────────────────────────────
+    days_to_sunday = (6 - today.weekday()) % 7 or 7
+    eow = today + timedelta(days=days_to_sunday)
+    eow_cases = [
+        ("end of week",              eow.isoformat()),
+        ("end of the week",          eow.isoformat()),
+        ("deliver end of week",      eow.isoformat()),
+        ("ready end of the week",    eow.isoformat()),
+    ]
+    for text, exp_date in eow_cases:
+        r = extract_datetime(text)
+        check(sec, f"end-of-week: {text!r}", text, exp_date, r.get("date"))
+
+    # ── day after tomorrow + period ───────────────────────────────────────────
+    dat_period_cases = [
+        ("day after tomorrow morning",   day_after.isoformat(), "09:00"),
+        ("day after tomorrow evening",   day_after.isoformat(), "18:00"),
+        ("day after tomorrow afternoon", day_after.isoformat(), "14:00"),
+    ]
+    for text, exp_date, exp_time in dat_period_cases:
+        r = extract_datetime(text)
+        check(sec, f"dat-period-date: {text!r}", text, exp_date, r.get("date"))
+        check(sec, f"dat-period-time: {text!r}", text, exp_time, r.get("time"))
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # RUNNER
