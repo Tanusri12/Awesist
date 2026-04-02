@@ -595,13 +595,23 @@ def test_relative_dates():
     day_after = today + timedelta(days=2)
 
     def next_weekday(name):
-        """Return the next occurrence of a named weekday (today counts as 'next' only
-        if today IS that day AND dateparser returns it — here we use the same logic
-        as parse_weekday which calls dateparser with PREFER_DATES_FROM=future)."""
+        """Return the next occurrence of a named weekday."""
         import dateparser
         from datetime import datetime as dt_
         d = dateparser.parse(name, settings={"PREFER_DATES_FROM": "future", "RELATIVE_BASE": dt_.now()})
         return d.date() if d else None
+
+    def next_weekday_for_next_prefix(name):
+        """Return expected date for 'next {name}'.
+        If the nearest occurrence is ≤ 2 days away, add 7 (too imminent to be 'next').
+        Otherwise the nearest occurrence is what the user means."""
+        base = next_weekday(name)
+        if base is None:
+            return None
+        days_away = (base - today).days
+        if days_away <= 2:
+            return base + timedelta(days=7)
+        return base
 
     def in_months(n):
         """Same-day n months from today (clamped to month end)."""
@@ -682,7 +692,7 @@ def test_relative_dates():
 
     # ── next week + weekday ("next week monday") ──────────────────────────────
     for day_name in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
-        exp = next_weekday(day_name)
+        exp = next_weekday_for_next_prefix(day_name)
         if exp is None:
             continue
         text = f"next week {day_name}"
@@ -691,12 +701,17 @@ def test_relative_dates():
 
     # ── named weekdays ────────────────────────────────────────────────────────
     for day_name in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
-        exp = next_weekday(day_name)
-        if exp is None:
+        base_exp = next_weekday(day_name)
+        next_exp = next_weekday_for_next_prefix(day_name)
+        if base_exp is None:
             continue
-        for text in [day_name, f"next {day_name}", f"on {day_name}", f"this {day_name}"]:
+        for text in [day_name, f"on {day_name}", f"this {day_name}"]:
             r = extract_datetime(text)
-            check(sec, f"weekday: {text!r}", text, exp.isoformat(), r.get("date"))
+            check(sec, f"weekday: {text!r}", text, base_exp.isoformat(), r.get("date"))
+        if next_exp:
+            text = f"next {day_name}"
+            r = extract_datetime(text)
+            check(sec, f"weekday: {text!r}", text, next_exp.isoformat(), r.get("date"))
 
     # ── in N minutes / hours ──────────────────────────────────────────────────
     from datetime import datetime as dt_

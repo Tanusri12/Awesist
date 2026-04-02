@@ -368,18 +368,32 @@ def parse_weekday(text):
 
     for day in weekdays:
 
-        if day in text:
+        if day not in text:
+            continue
 
-            dt = dateparser.parse(day, settings=_settings())
+        dt = dateparser.parse(day, settings=_settings())
 
-            if dt:
+        if not dt:
+            continue
 
-                time = detect_time(text)
+        # "next friday" / "next week friday" → push past the nearest occurrence when
+        # that day is too imminent (≤ 2 days away) to be what the user means by "next".
+        # e.g. from Thursday: "next friday" (1 day away) → +7 → correct Friday next week
+        #                     "next monday" (4 days away) → no +7 → correct upcoming Monday
+        is_next = bool(re.search(rf'\bnext\s+{day}\b', text)) or \
+                  bool(re.search(rf'\bnext\s+week\s+{day}\b', text))
+        if is_next:
+            from datetime import date as _date
+            days_away = (dt.date() - _date.today()).days
+            if days_away <= 2:
+                dt += timedelta(days=7)
 
-                return {
-                    "date": dt.date().isoformat(),
-                    "time": parse_time_string(time) if time else None
-                }
+        time = detect_time(text)
+
+        return {
+            "date": dt.date().isoformat(),
+            "time": parse_time_string(time) if time else None
+        }
 
     return None
 
