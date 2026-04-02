@@ -6,10 +6,6 @@ from config import OPENAI_API_KEY
 
 OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 
-# ── AI rate-limit table (in-memory, resets on restart) ────────────────────────
-# { phone: {"date": "YYYY-MM-DD", "count": int, "last_ts": float} }
-_AI_CALL_LOG: dict = {}
-
 # Per-plan daily AI call limits
 _AI_DAILY_LIMITS = {
     "trial":   5,
@@ -19,38 +15,74 @@ _AI_DAILY_LIMITS = {
 _AI_COOLDOWN_SECS = 60   # min seconds between two AI calls from the same user
 
 
+def _ai_rate_check(phone: str, plan: str = "trial") -> tuple:
+    """
+    Check DB-backed rate limit. Returns (allowed: bool, count: int, last_ts: float).
+    Uses ai_rate_limits table — survives restarts, resistant to abuse.
+    """
+    from datetime import date
+    from repositories.db_pool import get_connection, release_connection
+    today = date.today().isoformat()
+    conn  = get_connection()
+    try:
+        cur = conn.cursor()
+        # Upsert today's row if it doesn't exist
+        cur.execute("""
+            INSERT INTO ai_rate_limits (user_id, date, count, last_ts)
+            VALUES (%s, %s, 0, 0)
+            ON CONFLICT (user_id, date) DO NOTHING
+        """, (phone, today))
+        conn.commit()
+        cur.execute(
+            "SELECT count, last_ts FROM ai_rate_limits WHERE user_id=%s AND date=%s",
+            (phone, today)
+        )
+        row = cur.fetchone()
+        count, last_ts = (row[0], float(row[1])) if row else (0, 0.0)
+        return count, last_ts
+    except Exception as e:
+        print(f"[AI rate check error] {e}")
+        return 0, 0.0
+    finally:
+        cur.close()
+        release_connection(conn)
+
+
 def _ai_allowed(phone: str, plan: str = "trial") -> bool:
     """Return True if this user is allowed another AI call right now."""
-    from datetime import date
-    today = date.today().isoformat()
-    entry = _AI_CALL_LOG.get(phone, {})
-
-    # Reset daily count if it's a new day
-    if entry.get("date") != today:
-        entry = {"date": today, "count": 0, "last_ts": 0}
+    count, last_ts = _ai_rate_check(phone, plan)
 
     # Per-minute cooldown — stops rapid spamming
-    if time.time() - entry.get("last_ts", 0) < _AI_COOLDOWN_SECS:
+    if time.time() - last_ts < _AI_COOLDOWN_SECS:
         return False
 
     # Daily limit by plan
     limit = _AI_DAILY_LIMITS.get(plan, _AI_DAILY_LIMITS["trial"])
-    if entry["count"] >= limit:
-        return False
-
-    return True
+    return count < limit
 
 
 def _ai_record_call(phone: str):
-    """Increment the AI call counter for this user."""
+    """Increment the DB-backed AI call counter for this user."""
     from datetime import date
+    from repositories.db_pool import get_connection, release_connection
     today = date.today().isoformat()
-    entry = _AI_CALL_LOG.get(phone, {"date": today, "count": 0, "last_ts": 0})
-    if entry.get("date") != today:
-        entry = {"date": today, "count": 0, "last_ts": 0}
-    entry["count"] += 1
-    entry["last_ts"] = time.time()
-    _AI_CALL_LOG[phone] = entry
+    now_ts = time.time()
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO ai_rate_limits (user_id, date, count, last_ts)
+            VALUES (%s, %s, 1, %s)
+            ON CONFLICT (user_id, date) DO UPDATE
+            SET count   = ai_rate_limits.count + 1,
+                last_ts = EXCLUDED.last_ts
+        """, (phone, today, now_ts))
+        conn.commit()
+    except Exception as e:
+        print(f"[AI record call error] {e}")
+    finally:
+        cur.close()
+        release_connection(conn)
 
 
 def _looks_like_order(text: str) -> bool:

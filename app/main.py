@@ -1,10 +1,39 @@
+import hashlib
+import hmac
+
 from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 from threading import Thread
 
-from config import VERIFY_TOKEN, ADMIN_SECRET
+from config import VERIFY_TOKEN, ADMIN_SECRET, META_APP_SECRET, BETA_ALLOWLIST
 from incoming_msg_processor import process_message
 from worker.reminder_worker import run_worker
+
+
+def _verify_meta_signature(raw_body: bytes, signature_header: str) -> bool:
+    """Verify that the request came from Meta using HMAC-SHA256."""
+    if not META_APP_SECRET:
+        # If no secret configured, skip verification (dev mode)
+        return True
+    if not signature_header or not signature_header.startswith("sha256="):
+        return False
+    expected = "sha256=" + hmac.new(
+        META_APP_SECRET.encode(), raw_body, hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature_header)
+
+
+def _extract_sender_phone(data: dict) -> str | None:
+    """Pull the sender's phone number from the WhatsApp payload."""
+    try:
+        entry   = data["entry"][0]
+        changes = entry["changes"][0]
+        msgs    = changes["value"].get("messages", [])
+        if msgs:
+            return msgs[0].get("from", "")
+    except (KeyError, IndexError):
+        pass
+    return None
 
 app = FastAPI()
 
@@ -28,7 +57,27 @@ async def verify_webhook(request: Request):
 
 @app.post("/webhook")
 async def receive_message(request: Request, background_tasks: BackgroundTasks):
-    data = await request.json()
+    raw_body  = await request.body()
+    signature = request.headers.get("X-Hub-Signature-256", "")
+
+    # ── 1. Verify this request actually came from Meta ─────────────────────────
+    if not _verify_meta_signature(raw_body, signature):
+        print(f"[SECURITY] Invalid webhook signature — rejected")
+        raise HTTPException(status_code=403, detail="Invalid signature")
+
+    import json
+    try:
+        data = json.loads(raw_body)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Bad JSON")
+
+    # ── 2. Beta allowlist — ignore messages from unknown numbers ───────────────
+    if BETA_ALLOWLIST:
+        sender = _extract_sender_phone(data)
+        if sender and sender not in BETA_ALLOWLIST:
+            print(f"[SECURITY] Blocked unknown sender: ***{sender[-4:]}")
+            return {"status": "ignored"}
+
     background_tasks.add_task(process_message, data)
     return {"status": "received"}
 
