@@ -13,7 +13,7 @@ from handlers.onboarding import handle_onboarding
 from handlers.reminder_handler import handle_create_reminder, handle_reminder_state
 from handlers.payment_handler import handle_unpaid, handle_mark_paid, handle_earnings, handle_track_payment, handle_remove_payment
 from handlers.list_handler import handle_list_reminders, handle_delete_reminder
-from whatsapp import send_whatsapp_message, mark_message_read
+from whatsapp import send_whatsapp_message, mark_message_read, send_typing_indicator
 
 USER_CACHE = {}
 EXPIRY_MSG_SENT = {}   # phone -> datetime of last expiry message (rate-limit to 1/hour)
@@ -90,8 +90,9 @@ def process_message(data: dict):
 
         print(f"MSG from {phone}: {text}")
 
-        # Mark as read immediately — sender sees blue ticks
+        # Mark as read immediately — sender sees blue ticks, then typing indicator
         mark_message_read(message_id)
+        send_typing_indicator(phone)
         text_lower = text.lower().strip()
 
         # ── Language gate — English only ───────────────────────────────────

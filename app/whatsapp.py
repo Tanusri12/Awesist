@@ -1,4 +1,5 @@
 import requests
+import time
 from config import WHATSAPP_TOKEN, PHONE_NUMBER_ID
 
 
@@ -24,6 +25,38 @@ def mark_message_read(message_id: str):
         )
     except Exception as e:
         print(f"MARK READ ERROR: {e}")
+
+
+def send_typing_indicator(phone: str):
+    """
+    Show the '...' typing bubble to the user while the bot is processing.
+    Called immediately after mark_message_read so the user sees:
+      1. Blue ticks  (message received)
+      2. '...'       (bot is thinking)
+      3. Reply       (bot responds)
+
+    Uses WhatsApp Cloud API typing action — fails silently if unsupported.
+    """
+    try:
+        url = f"https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages"
+        requests.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {WHATSAPP_TOKEN}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "messaging_product": "whatsapp",
+                "to": phone,
+                "type": "action",
+                "action": "typing_on",
+            },
+            timeout=3,
+        )
+        # Give WhatsApp a moment to show the indicator before the reply arrives
+        time.sleep(1)
+    except Exception as e:
+        print(f"TYPING INDICATOR ERROR: {e}")
 
 
 def send_whatsapp_message(phone_number: str, message: str, show_help: bool = True) -> bool:
