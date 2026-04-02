@@ -713,6 +713,40 @@ def test_relative_dates():
             r = extract_datetime(text)
             check(sec, f"weekday: {text!r}", text, next_exp.isoformat(), r.get("date"))
 
+    # ── day after / day before weekday ────────────────────────────────────────
+    for day_name in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
+        base = next_weekday(day_name)
+        if base is None:
+            continue
+        day_after_exp  = base + timedelta(days=1)
+        day_before_exp = base - timedelta(days=1)
+
+        # "day after {day} 6pm" → base + 1, time 18:00
+        for tmpl, exp_date in [
+            (f"day after {day_name}",          day_after_exp),
+            (f"day before {day_name}",         day_before_exp),
+            (f"cake day after {day_name} 6pm", day_after_exp),
+            (f"order day before {day_name} at 5pm", day_before_exp),
+        ]:
+            r = extract_datetime(tmpl)
+            check(sec, f"day-after-before: {tmpl!r}", tmpl, exp_date.isoformat(), r.get("date"))
+
+        # Task name should NOT contain weekday phrase after stripping
+        from ai_extractor import _local_extract
+        full_msg = f"priya blouse day after {day_name} 3pm"
+        res = _local_extract(full_msg)
+        task = res.get("task", "")
+        if day_name in task or "day after" in task:
+            check(sec, f"task-strip day-after: {full_msg!r}", full_msg,
+                  "task should not contain day phrase", task)
+
+        full_msg2 = f"anjali saree day before {day_name} 11am"
+        res2 = _local_extract(full_msg2)
+        task2 = res2.get("task", "")
+        if day_name in task2 or "day before" in task2:
+            check(sec, f"task-strip day-before: {full_msg2!r}", full_msg2,
+                  "task should not contain day phrase", task2)
+
     # ── in N minutes / hours ──────────────────────────────────────────────────
     from datetime import datetime as dt_
     def approx_in(minutes):

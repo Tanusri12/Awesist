@@ -85,32 +85,48 @@ def _ai_record_call(phone: str):
         release_connection(conn)
 
 
+_QUESTION_STARTERS = (
+    "what ", "how ", "why ", "when ", "who ", "where ",
+    "is ", "are ", "was ", "were ", "will ", "would ",
+    "can ", "could ", "should ", "do ", "does ", "did ",
+    "tell me", "please tell", "please help", "help me",
+    "i want to know", "can you tell",
+    # Directed at the bot — insults, complaints, statements
+    "you are", "you're", "you were", "you have", "you've",
+    "you can", "you should", "you don't", "you cant",
+    "i am ", "i'm ", "i was ", "i feel ",
+)
+
+_KNOWN_COMMANDS = {
+    "hi", "hello", "hey", "help", "reminders", "unpaid",
+    "earnings", "how", "cancel", "paid",
+}
+
+
+def _is_clearly_not_order(text: str) -> bool:
+    """Return True ONLY for definite non-orders: questions, greetings, commands.
+    Incomplete orders (task but no date) should NOT be flagged here."""
+    t = text.strip().lower()
+    if len(t.split()) < 2:
+        return True
+    if t.endswith("?") or t.startswith(_QUESTION_STARTERS):
+        return True
+    if t in _KNOWN_COMMANDS:
+        return True
+    return False
+
+
 def _looks_like_order(text: str) -> bool:
     """
     Quick filter — return False for messages that are clearly NOT orders.
     Avoids wasting AI tokens on questions, greetings, commands, etc.
+    Also requires at least one date/time signal (digit or time-of-day word).
+    Use _is_clearly_not_order() when you only want to block definite non-orders
+    but still want to show a template for incomplete orders.
     """
+    if _is_clearly_not_order(text):
+        return False
     t = text.strip().lower()
-    # Too short to be an order
-    if len(t.split()) < 3:
-        return False
-    # Looks like a question — ends with ? or starts with a question word/phrase
-    question_starters = (
-        "what ", "how ", "why ", "when ", "who ", "where ",
-        "is ", "are ", "was ", "were ", "will ", "would ",
-        "can ", "could ", "should ", "do ", "does ", "did ",
-        "tell me", "please tell", "please help", "help me",
-        "i want to know", "can you tell",
-        # Directed at the bot — insults, complaints, statements
-        "you are", "you're", "you were", "you have", "you've",
-        "you can", "you should", "you don't", "you cant",
-        "i am ", "i'm ", "i was ", "i feel ",
-    )
-    if t.endswith("?") or t.startswith(question_starters):
-        return False
-    # Known commands / single-word inputs
-    if t in ("hi", "hello", "hey", "help", "reminders", "unpaid", "earnings", "how", "cancel", "paid"):
-        return False
     # Must have at least one digit (date/time/amount) or a time-of-day word
     if not re.search(r'\d|\btoday\b|\btomorrow\b|\bmorning\b|\bevening\b|\bnight\b|\bnext\b', t):
         return False
@@ -415,7 +431,12 @@ def _strip_payment_tokens(text: str, payment_fields: dict) -> str:
     t = re.sub(r'\b(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)\b', '', t, flags=re.I)
     # Strip bare "at N" or "at N:MM" that have no am/pm (e.g. "at 11", "at 11:30")
     t = re.sub(r'\bat\s+\d{1,2}(?::\d{2})?\b', '', t, flags=re.I)
-    t = re.sub(r'\b(?:day\s+after\s+tomorrow|tomorrow|today|tonight|morning|afternoon|evening|next\s+\w+|end\s+of\s+(?:the\s+)?(?:week|month))\b', '', t, flags=re.I)
+    _WEEKDAY_PAT = r'(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)'
+    # Strip "day after/before {weekday}", "next {weekday}", bare weekday names
+    t = re.sub(rf'\bday\s+(?:after|before)\s+{_WEEKDAY_PAT}\b', '', t, flags=re.I)
+    t = re.sub(rf'\bnext\s+(?:week\s+)?{_WEEKDAY_PAT}\b', '', t, flags=re.I)
+    t = re.sub(rf'\b(?:this\s+|on\s+)?{_WEEKDAY_PAT}\b', '', t, flags=re.I)
+    t = re.sub(r'\b(?:day\s+after\s+tomorrow|tomorrow|today|tonight|morning|afternoon|evening|end\s+of\s+(?:the\s+)?(?:week|month))\b', '', t, flags=re.I)
     # Strip bare ordinals ONLY (13th, 1st, 2nd) — NOT bare numbers like "8" which are quantities
     t = re.sub(r'\b\d{1,2}(?:st|nd|rd|th)\b', '', t)
 

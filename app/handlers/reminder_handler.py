@@ -16,7 +16,7 @@ Slow path (step-by-step):
          → awaiting_customer_phone → awaiting_payment → awaiting_advance
 """
 from datetime import datetime, timedelta
-from ai_extractor import extract_reminder_details, parse_template_reply, _looks_like_order
+from ai_extractor import extract_reminder_details, parse_template_reply, _looks_like_order, _is_clearly_not_order
 from conversation_memory import get_state, set_state, clear_state
 from repositories.payment_repository import create_payment
 from repositories.db_pool import get_connection, release_connection
@@ -48,8 +48,8 @@ def handle_create_reminder(user_id: str, phone: str, text: str):
         )
         return
 
-    # ── Not an order (question / greeting / command) → guide the user ────
-    if not _looks_like_order(text):
+    # ── Definite non-order (question / greeting / command) → guide the user ──
+    if _is_clearly_not_order(text):
         send_whatsapp_message(
             phone,
             "I didn't quite get that 😊\n\n"

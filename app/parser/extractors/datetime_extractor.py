@@ -376,17 +376,21 @@ def parse_weekday(text):
         if not dt:
             continue
 
-        # "next friday" / "next week friday" → push past the nearest occurrence when
-        # that day is too imminent (≤ 2 days away) to be what the user means by "next".
-        # e.g. from Thursday: "next friday" (1 day away) → +7 → correct Friday next week
-        #                     "next monday" (4 days away) → no +7 → correct upcoming Monday
-        is_next = bool(re.search(rf'\bnext\s+{day}\b', text)) or \
-                  bool(re.search(rf'\bnext\s+week\s+{day}\b', text))
-        if is_next:
-            from datetime import date as _date
-            days_away = (dt.date() - _date.today()).days
-            if days_away <= 2:
-                dt += timedelta(days=7)
+        # "day after {day}" → +1 day;  "day before {day}" → -1 day
+        if re.search(rf'\bday\s+after\s+{day}\b', text):
+            dt += timedelta(days=1)
+        elif re.search(rf'\bday\s+before\s+{day}\b', text):
+            dt -= timedelta(days=1)
+        else:
+            # "next friday" / "next week friday" → push past the nearest occurrence when
+            # that day is too imminent (≤ 2 days away) to be what the user means by "next".
+            is_next = bool(re.search(rf'\bnext\s+{day}\b', text)) or \
+                      bool(re.search(rf'\bnext\s+week\s+{day}\b', text))
+            if is_next:
+                from datetime import date as _date
+                days_away = (dt.date() - _date.today()).days
+                if days_away <= 2:
+                    dt += timedelta(days=7)
 
         time = detect_time(text)
 
