@@ -585,6 +585,183 @@ def test_full_parsing():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# SECTION 7 — relative date expressions
+# ══════════════════════════════════════════════════════════════════════════════
+
+def test_relative_dates():
+    sec = "relative_dates"
+    today     = date.today()
+    tomorrow  = today + timedelta(days=1)
+    day_after = today + timedelta(days=2)
+
+    def next_weekday(name):
+        """Return the next occurrence of a named weekday (today counts as 'next' only
+        if today IS that day AND dateparser returns it — here we use the same logic
+        as parse_weekday which calls dateparser with PREFER_DATES_FROM=future)."""
+        import dateparser
+        from datetime import datetime as dt_
+        d = dateparser.parse(name, settings={"PREFER_DATES_FROM": "future", "RELATIVE_BASE": dt_.now()})
+        return d.date() if d else None
+
+    def in_months(n):
+        """Same-day n months from today (clamped to month end)."""
+        m = today.month + n
+        y = today.year + (m - 1) // 12
+        m = (m - 1) % 12 + 1
+        import calendar
+        day = min(today.day, calendar.monthrange(y, m)[1])
+        return date(y, m, day)
+
+    def next_month_date():
+        return in_months(1)
+
+    # ── today ─────────────────────────────────────────────────────────────────
+    today_cases = [
+        ("today",               today.isoformat(), None),
+        ("today at 6pm",        today.isoformat(), "18:00"),
+        ("today morning",       today.isoformat(), "09:00"),
+        ("today afternoon",     today.isoformat(), "14:00"),
+        ("today evening",       today.isoformat(), "18:00"),
+        ("today tonight",       today.isoformat(), "21:00"),
+        ("today 6pm",           today.isoformat(), "18:00"),
+        ("today 6:30pm",        today.isoformat(), "18:30"),
+        ("today 10am",          today.isoformat(), "10:00"),
+        ("cake delivery today", today.isoformat(), None),
+    ]
+    for text, exp_date, exp_time in today_cases:
+        r = extract_datetime(text)
+        check(sec, f"today: {text!r}", text, exp_date, r.get("date"))
+        if exp_time is not None:
+            check(sec, f"today-time: {text!r}", text, exp_time, r.get("time"))
+
+    # ── tomorrow ──────────────────────────────────────────────────────────────
+    tomorrow_cases = [
+        ("tomorrow",                 tomorrow.isoformat(), None),
+        ("tomorrow at 6pm",          tomorrow.isoformat(), "18:00"),
+        ("tomorrow morning",         tomorrow.isoformat(), "09:00"),
+        ("tomorrow afternoon",       tomorrow.isoformat(), "14:00"),
+        ("tomorrow evening",         tomorrow.isoformat(), "18:00"),
+        ("tomorrow 6pm",             tomorrow.isoformat(), "18:00"),
+        ("tomorrow 9am",             tomorrow.isoformat(), "09:00"),
+        ("tomorrow 6:30pm",          tomorrow.isoformat(), "18:30"),
+        ("tomorrow 6:07am",          tomorrow.isoformat(), "06:07"),
+        ("deliver cake tomorrow",    tomorrow.isoformat(), None),
+        ("delivery tomorrow evening",tomorrow.isoformat(), "18:00"),
+        ("meet tomorrow at 10am",    tomorrow.isoformat(), "10:00"),
+    ]
+    for text, exp_date, exp_time in tomorrow_cases:
+        r = extract_datetime(text)
+        check(sec, f"tomorrow: {text!r}", text, exp_date, r.get("date"))
+        if exp_time is not None:
+            check(sec, f"tomorrow-time: {text!r}", text, exp_time, r.get("time"))
+
+    # ── day after tomorrow ────────────────────────────────────────────────────
+    dat_cases = [
+        ("day after tomorrow",          day_after.isoformat(), None),
+        ("day after tomorrow at 5pm",   day_after.isoformat(), "17:00"),
+        ("day after tomorrow morning",  day_after.isoformat(), None),   # known limit — see note
+    ]
+    for text, exp_date, exp_time in dat_cases:
+        r = extract_datetime(text)
+        check(sec, f"day-after: {text!r}", text, exp_date, r.get("date"))
+        if exp_time is not None:
+            check(sec, f"day-after-time: {text!r}", text, exp_time, r.get("time"))
+
+    # ── next week ─────────────────────────────────────────────────────────────
+    next_week = today + timedelta(days=7)
+    next_week_cases = [
+        ("next week",            next_week.isoformat(), None),
+        ("next week at 10am",    next_week.isoformat(), "10:00"),
+        ("deliver next week",    next_week.isoformat(), None),
+    ]
+    for text, exp_date, exp_time in next_week_cases:
+        r = extract_datetime(text)
+        check(sec, f"next-week: {text!r}", text, exp_date, r.get("date"))
+        if exp_time is not None:
+            check(sec, f"next-week-time: {text!r}", text, exp_time, r.get("time"))
+
+    # ── next week + weekday ("next week monday") ──────────────────────────────
+    for day_name in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
+        exp = next_weekday(day_name)
+        if exp is None:
+            continue
+        text = f"next week {day_name}"
+        r = extract_datetime(text)
+        check(sec, f"next-week-day: {text!r}", text, exp.isoformat(), r.get("date"))
+
+    # ── named weekdays ────────────────────────────────────────────────────────
+    for day_name in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
+        exp = next_weekday(day_name)
+        if exp is None:
+            continue
+        for text in [day_name, f"next {day_name}", f"on {day_name}", f"this {day_name}"]:
+            r = extract_datetime(text)
+            check(sec, f"weekday: {text!r}", text, exp.isoformat(), r.get("date"))
+
+    # ── in N minutes / hours ──────────────────────────────────────────────────
+    from datetime import datetime as dt_
+    def approx_in(minutes):
+        """Expected date for 'in N minutes/hours' (just check date, time may vary by seconds)."""
+        return (dt_.now() + timedelta(minutes=minutes)).date().isoformat()
+
+    relative_time_cases = [
+        ("in 30 minutes",  approx_in(30)),
+        ("in 1 hour",      approx_in(60)),
+        ("in 2 hours",     approx_in(120)),
+        ("in 45 mins",     approx_in(45)),
+        ("in 90 minutes",  approx_in(90)),
+    ]
+    for text, exp_date in relative_time_cases:
+        r = extract_datetime(text)
+        check(sec, f"in-minutes: {text!r}", text, exp_date, r.get("date"))
+
+    # ── in N days / weeks / months ────────────────────────────────────────────
+    in_cases = [
+        ("in 1 day",    (today + timedelta(days=1)).isoformat()),
+        ("in 2 days",   (today + timedelta(days=2)).isoformat()),
+        ("in 3 days",   (today + timedelta(days=3)).isoformat()),
+        ("in 5 days",   (today + timedelta(days=5)).isoformat()),
+        ("in 1 week",   (today + timedelta(days=7)).isoformat()),
+        ("in 2 weeks",  (today + timedelta(days=14)).isoformat()),
+        ("in 3 weeks",  (today + timedelta(days=21)).isoformat()),
+        ("in 1 month",  in_months(1).isoformat()),
+        ("in 2 months", in_months(2).isoformat()),
+        ("in 3 months", in_months(3).isoformat()),
+        ("in 6 months", in_months(6).isoformat()),
+    ]
+    for text, exp_date in in_cases:
+        r = extract_datetime(text)
+        check(sec, f"in-N: {text!r}", text, exp_date, r.get("date"))
+
+    # ── after N days / weeks / months ─────────────────────────────────────────
+    after_cases = [
+        ("after 1 day",    (today + timedelta(days=1)).isoformat()),
+        ("after 2 days",   (today + timedelta(days=2)).isoformat()),
+        ("after 3 days",   (today + timedelta(days=3)).isoformat()),
+        ("after 1 week",   (today + timedelta(days=7)).isoformat()),
+        ("after 2 weeks",  (today + timedelta(days=14)).isoformat()),
+        ("after 3 weeks",  (today + timedelta(days=21)).isoformat()),
+        ("after 1 month",  in_months(1).isoformat()),
+        ("after 2 months", in_months(2).isoformat()),
+        ("after 3 months", in_months(3).isoformat()),
+    ]
+    for text, exp_date in after_cases:
+        r = extract_datetime(text)
+        check(sec, f"after-N: {text!r}", text, exp_date, r.get("date"))
+
+    # ── next month ────────────────────────────────────────────────────────────
+    nm = next_month_date()
+    next_month_cases = [
+        ("next month",           nm.isoformat()),
+        ("deliver next month",   nm.isoformat()),
+        ("next month at 5pm",    nm.isoformat()),
+    ]
+    for text, exp_date in next_month_cases:
+        r = extract_datetime(text)
+        check(sec, f"next-month: {text!r}", text, exp_date, r.get("date"))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # RUNNER
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -600,6 +777,7 @@ def run(verbose=False, stop_on_fail=False):
         ("Section 4: _looks_like_order",     test_looks_like_order),
         ("Section 5: _strip_payment_tokens", test_strip_payment_tokens),
         ("Section 6: full end-to-end",       test_full_parsing),
+        ("Section 7: relative dates",        test_relative_dates),
     ]
 
     for title, fn in sections:

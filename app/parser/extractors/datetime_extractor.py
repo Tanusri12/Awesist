@@ -126,12 +126,49 @@ def parse_day_periods(text):
 # Handle "next week"
 # --------------------------------------------------
 
+_WEEKDAY_NAMES = [
+    "monday", "tuesday", "wednesday",
+    "thursday", "friday", "saturday", "sunday"
+]
+
 def parse_next_week(text):
 
     if "next week" not in text:
         return None
 
+    # If a specific weekday follows "next week", let parse_weekday handle it
+    # e.g. "next week monday" → should resolve to the Monday of next week
+    if any(day in text for day in _WEEKDAY_NAMES):
+        return None
+
     dt = datetime.now() + timedelta(days=7)
+
+    return {
+        "date": dt.date().isoformat(),
+        "time": None
+    }
+
+
+# --------------------------------------------------
+# Handle "next month"
+# --------------------------------------------------
+
+def parse_next_month(text):
+
+    if "next month" not in text:
+        return None
+
+    now = datetime.now()
+    month = now.month + 1
+    year  = now.year
+    if month > 12:
+        month = 1
+        year += 1
+
+    # Keep same day-of-month; clamp to end of month if needed
+    day = min(now.day, [31,28+int(year%4==0 and (year%100!=0 or year%400==0)),
+                         31,30,31,30,31,31,30,31,30,31][month-1])
+    dt = datetime(year, month, day)
 
     return {
         "date": dt.date().isoformat(),
@@ -368,8 +405,9 @@ def extract_datetime(text):
 
     parsers = [
         parse_day_after_tomorrow,
+        parse_day_periods,       # must be before parse_tomorrow — handles "tomorrow morning/evening" etc.
         parse_tomorrow,
-        parse_day_periods,
+        parse_next_month,        # must be before parse_next_week
         parse_next_week,
         parse_day_of_month,
         parse_relative_time,
