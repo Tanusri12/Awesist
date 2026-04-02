@@ -140,10 +140,13 @@ def get_user_reminders(user_id: str) -> list:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute(
             """
-            SELECT id, task, reminder_time, due_at
-            FROM reminders
-            WHERE user_id = %s AND status = 'pending'
-            ORDER BY reminder_time
+            SELECT r.id, r.task, r.reminder_time, r.due_at,
+                   p.total, p.advance,
+                   GREATEST(0, COALESCE(p.total, 0) - COALESCE(p.advance, 0)) AS balance
+            FROM reminders r
+            LEFT JOIN payments p ON p.reminder_id = r.id
+            WHERE r.user_id = %s AND r.status = 'pending'
+            ORDER BY COALESCE(r.due_at, r.reminder_time)
             """,
             (user_id,)
         )

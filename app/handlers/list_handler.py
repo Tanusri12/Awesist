@@ -1,6 +1,23 @@
-from datetime import datetime
+from datetime import datetime, date
 from repositories.reminder_repository import get_user_reminders, delete_reminder
 from whatsapp import send_whatsapp_message
+
+
+def _fmt_time(dt) -> str:
+    """Format a datetime to compact time like '6:00 PM' or '11:30 AM'."""
+    if not dt:
+        return ""
+    if dt.minute == 0:
+        return dt.strftime("%-I %p")       # "6 PM"
+    return dt.strftime("%-I:%M %p")        # "6:30 PM"
+
+
+def _to_dt(val) -> datetime:
+    if val is None:
+        return None
+    if isinstance(val, str):
+        return datetime.fromisoformat(val)
+    return val
 
 
 def handle_list_reminders(user_id: str, phone: str):
@@ -8,25 +25,89 @@ def handle_list_reminders(user_id: str, phone: str):
     if not reminders:
         send_whatsapp_message(
             phone,
-            "📭 You don't have any reminders yet.\n\n"
-            "Try: _Send cake to Anjali on 13th April at 6pm_"
+            "📭 No upcoming orders.\n\n"
+            "Save one: _Anjali cake 14 Apr 6pm_",
+            show_help=False
         )
         return
-    message = "📋 *Your reminders:*\n\n"
+
+    today = date.today()
+
+    # Group by due date (fall back to reminder date)
+    from collections import defaultdict
+    by_date = defaultdict(list)
     for i, r in enumerate(reminders, start=1):
-        rt = r["reminder_time"]
-        if isinstance(rt, str):
-            rt = datetime.fromisoformat(rt)
-        due = r.get("due_at")
-        if due and isinstance(due, str):
-            due = datetime.fromisoformat(due)
-        message += f"{i}. {r['task']}\n"
-        message += f"   ⏰ Remind: {rt.strftime('%d %b %Y %I:%M %p')}\n"
-        if due:
-            message += f"   📅 Due: {due.strftime('%d %b %Y %I:%M %p')}\n"
-        message += "\n"
-    message += "Reply: *delete <number>*  ·  *unpaid* to see balances"
-    send_whatsapp_message(phone, message)
+        due_dt  = _to_dt(r.get("due_at"))
+        rem_dt  = _to_dt(r.get("reminder_time"))
+        key_dt  = due_dt or rem_dt
+        key_day = key_dt.date() if key_dt else date.max
+        by_date[key_day].append((i, r, due_dt, rem_dt))
+
+    lines = ["📅 *Upcoming Orders*\n"]
+
+    for day in sorted(by_date.keys()):
+        entries = by_date[day]
+
+        # Day header
+        from datetime import timedelta as _td
+        if day == today:
+            day_label = f"*Today, {day.strftime('%-d %b')}*"
+        elif day == today + _td(days=1):
+            day_label = f"*Tomorrow, {day.strftime('%-d %b')}*"
+        else:
+            day_label = f"*{day.strftime('%a %-d %b')}*"
+
+        lines.append(day_label)
+
+        for idx, r, due_dt, rem_dt in entries:
+            task = r.get("task") or "—"
+
+            # Time
+            time_str = _fmt_time(due_dt) if due_dt else ""
+            remind_str = _fmt_time(rem_dt) if rem_dt else ""
+
+            # Payment
+            total   = r.get("total")
+            advance = r.get("advance")
+            balance = r.get("balance")
+
+            if total and float(total) > 0:
+                bal = float(balance or 0)
+                adv = float(advance or 0)
+                if bal <= 0:
+                    pay_str = "💚 Fully paid"
+                elif adv > 0:
+                    pay_str = f"💰 Rs.{int(adv)} pd · *Rs.{int(bal)} due*"
+                else:
+                    pay_str = f"💰 *Rs.{int(float(total))} due*"
+            else:
+                pay_str = ""
+
+            # Build entry
+            header = f"  {idx}. {task}"
+            if time_str:
+                header += f"  ·  {time_str}"
+            lines.append(header)
+            if remind_str:
+                lines.append(f"     🔔 Remind {remind_str}")
+            if pay_str:
+                lines.append(f"     {pay_str}")
+
+        lines.append("")   # blank line between date groups
+
+    # Summary footer
+    total_unpaid = sum(
+        float(r.get("balance") or 0)
+        for r in reminders
+        if r.get("balance") and float(r["balance"]) > 0
+    )
+    if total_unpaid > 0:
+        lines.append(f"💰 *Rs.{int(total_unpaid)} total pending*")
+        lines.append("")
+
+    lines.append("_delete 1  ·  unpaid  ·  earnings_")
+
+    send_whatsapp_message(phone, "\n".join(lines), show_help=False)
 
 
 def handle_delete_reminder(user_id: str, phone: str, text: str):
