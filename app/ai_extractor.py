@@ -443,6 +443,9 @@ def _strip_payment_tokens(text: str, payment_fields: dict) -> str:
     # Strip trailing punctuation
     t = re.sub(r'[.,;!?]+$', '', t.strip())
 
+    # Strip WhatsApp formatting characters (* _ ~) from start and end
+    t = re.sub(r'^[_*~]+|[_*~]+$', '', t).strip()
+
     # Collapse extra whitespace and strip dangling prepositions/conjunctions at end
     t = re.sub(r'\s{2,}', ' ', t).strip()
     t = re.sub(r'\s+\b(?:at|on|by|for|of|to|and|the|a|an)\b\s*$', '', t, flags=re.I).strip()
@@ -471,7 +474,18 @@ def _extract_payment_fields(text: str) -> dict:
         for m in re.finditer(money_pattern, text, re.I)
     ]
     # Bare integers (3+ digits, no currency symbol) as fallback pool
-    bare_ints = [float(m.group()) for m in re.finditer(r'\b(\d{3,})\b', text)]
+    # Exclude the customer phone number so it isn't treated as a payment amount
+    _phone_digits = phone_match.group(1) if phone_match else None
+    bare_ints = [
+        float(m.group())
+        for m in re.finditer(r'\b(\d{3,})\b', text)
+        if not (
+            _phone_digits and (
+                m.group() == _phone_digits or          # bare 10-digit
+                m.group() == "91" + _phone_digits      # with 91 prefix
+            )
+        )
+    ]
 
     # --- Compound patterns (try these first, before individual keyword search) ---
 
