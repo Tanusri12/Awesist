@@ -111,13 +111,71 @@ def handle_list_reminders(user_id: str, phone: str):
 
 
 def handle_delete_reminder(user_id: str, phone: str, text: str):
-    try:
-        index     = int(text.strip().split()[1]) - 1
+    import re
+    parts = text.strip().lower().split()
+
+    # "delete all" — remove everything
+    if len(parts) >= 2 and parts[1] == "all":
         reminders = get_user_reminders(user_id)
-        if index < 0 or index >= len(reminders):
-            send_whatsapp_message(phone, "⚠️ Reminder not found. Send *reminders* to see your list.")
+        if not reminders:
+            send_whatsapp_message(phone, "📭 Nothing to delete.", show_help=False)
             return
-        delete_reminder(reminders[index]["id"], user_id)
-        send_whatsapp_message(phone, "🗑️ Reminder deleted.")
-    except (IndexError, ValueError):
-        send_whatsapp_message(phone, "⚠️ Send: *delete 2*  (use the number from your list)")
+        for r in reminders:
+            try:
+                delete_reminder(r["id"], user_id)
+            except Exception:
+                pass
+        send_whatsapp_message(
+            phone,
+            f"🗑️ All {len(reminders)} reminder{'s' if len(reminders)>1 else ''} deleted.",
+            show_help=False
+        )
+        return
+
+    # "delete 1 3 5" or "delete 1,3,5" — extract all numbers
+    numbers = [int(n) for n in re.findall(r'\d+', text)]
+    if not numbers:
+        send_whatsapp_message(
+            phone,
+            "⚠️ Send: *delete 2*  or  *delete 1 3 5*  or  *delete all*",
+            show_help=False
+        )
+        return
+
+    reminders = get_user_reminders(user_id)
+    deleted = []
+    not_found = []
+
+    for num in sorted(set(numbers), reverse=True):  # reverse so indexes don't shift mid-delete
+        index = num - 1
+        if index < 0 or index >= len(reminders):
+            not_found.append(num)
+        else:
+            try:
+                delete_reminder(reminders[index]["id"], user_id)
+                deleted.append(num)
+            except Exception:
+                not_found.append(num)
+
+    if deleted and not not_found:
+        if len(deleted) == 1:
+            send_whatsapp_message(phone, f"🗑️ Reminder {deleted[0]} deleted.", show_help=False)
+        else:
+            send_whatsapp_message(
+                phone,
+                f"🗑️ Deleted {len(deleted)} reminders ({', '.join(str(n) for n in sorted(deleted))}).",
+                show_help=False
+            )
+    elif deleted and not_found:
+        send_whatsapp_message(
+            phone,
+            f"🗑️ Deleted: {', '.join(str(n) for n in sorted(deleted))}\n"
+            f"⚠️ Not found: {', '.join(str(n) for n in sorted(not_found))}",
+            show_help=False
+        )
+    else:
+        send_whatsapp_message(
+            phone,
+            "⚠️ Reminder not found. Send *reminders* to see your list.",
+            show_help=False
+        )
