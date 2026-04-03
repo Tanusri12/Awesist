@@ -464,6 +464,7 @@ def _send_help(phone: str):
         "📖 *All Commands*\n\n"
 
         "━━ 📦 *Save an order* ━━\n"
+        "Just send it naturally — I'll remind you automatically:\n\n"
         "_Anjali cake 14 Apr 6pm_\n"
         "_Priya blouse 20 Apr 11am total 1200 advance 300_\n"
         "_Meena saree next friday 5pm 9876543210_\n\n"
@@ -475,13 +476,13 @@ def _send_help(phone: str):
 
         "━━ 💰 *Track payments* ━━\n"
         "*track Anjali total 1200* → log a payment\n"
-        "*track Anjali total 1200 advance 300* → partial payment\n"
+        "*track Anjali total 1200 advance 300* → partial\n"
         "*paid 2* → mark unpaid #2 as fully paid\n"
         "_(send *unpaid* first to see the numbers)_\n\n"
 
         "━━ ✏️ *Edit & delete* ━━\n"
         "*edit* → update your last saved order\n"
-        "*delete 2* → remove reminder #2\n"
+        "*delete 2* → remove order #2\n"
         "*delete 1 3 5* → remove multiple at once\n"
         "*delete all* → clear everything\n"
         "_(send *reminders* first to see the numbers)_\n\n"
@@ -489,7 +490,7 @@ def _send_help(phone: str):
         "━━ 📞 *Notify your customer* ━━\n"
         "Add their number when saving:\n"
         "_Priya cake 14 Apr 6pm 9876543210_\n"
-        "They'll get a WhatsApp when their order is ready\n\n"
+        "They get a WhatsApp when their order is ready 📱\n\n"
 
         "*help* → this list anytime",
         show_help=False
