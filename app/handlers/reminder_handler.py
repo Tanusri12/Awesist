@@ -1405,14 +1405,79 @@ def _handle_awaiting_payment_notify(user_id: str, phone: str, text: str, state: 
     due_dt   = _build_datetime(due_date, due_time) if due_date else None
     display_num = customer_phone[-10:]
 
-    context = f"\nDue: {due_dt.strftime('%d %b, %I:%M %p')}" if due_dt else ""
-    set_state(phone, {**state, "step": "awaiting_payment_notify_time", "customer_phone": customer_phone})
-    send_whatsapp_message(
-        phone,
-        f"📲 When should I WhatsApp *{display_num}*?{context}\n\n"
-        f"Type a time e.g. _1pm_, _10:30am_\nor *no* to skip",
-        show_help=False
-    )
+    # Auto-set customer notification to 7 AM on the due date.
+    # If 7 AM has already passed (same-day order), fall back to 1 hr before due.
+    # If that's also passed, notify immediately (in ~1 min).
+    notify_at = None
+    notify_label = ""
+    if due_dt:
+        from datetime import timezone, timedelta as _td
+        IST = timezone(_td(hours=5, minutes=30))
+        now_ist = datetime.now(IST).replace(tzinfo=None)  # naive IST
+
+        seven_am = due_dt.replace(hour=7, minute=0, second=0, microsecond=0)
+        one_hr_before = due_dt - _td(hours=1)
+
+        if seven_am > now_ist:
+            notify_at    = seven_am
+            notify_label = notify_at.strftime("%-d %b at 7:00 AM")
+        elif one_hr_before > now_ist:
+            notify_at    = one_hr_before
+            notify_label = notify_at.strftime("%-d %b at %-I:%M %p") + " (1 hr before)"
+        else:
+            # Due time is very soon — send immediately
+            notify_at    = now_ist + _td(minutes=2)
+            notify_label = "in a few minutes"
+
+    payment_id     = state.get("payment_id")
+    reminder_id    = state.get("reminder_id")
+    task           = state.get("task", "")
+
+    from repositories.payment_repository import update_payment_notify, create_payment, get_payment_for_reminder
+    if payment_id and notify_at:
+        update_payment_notify(payment_id, customer_phone, notify_at)
+    elif notify_at:
+        existing = get_payment_for_reminder(reminder_id) if reminder_id else None
+        if existing:
+            update_payment_notify(existing["id"], customer_phone, notify_at)
+        else:
+            customer = _extract_customer(task)
+            create_payment(
+                user_id=user_id, reminder_id=reminder_id, customer=customer,
+                total=0, advance=0, customer_phone=customer_phone,
+                notify_customer=True, customer_notify_at=notify_at
+            )
+
+    # Build the full saved summary
+    due_display = due_dt.strftime("%-d %b, %-I:%M %p") if due_dt else "—"
+    rem_display = state.get("reminder_display", "")
+    task_display = task
+
+    lines = [
+        f"✅ *All saved!*\n",
+        f"📝 {task_display}",
+        f"📅 Due: {due_display}",
+    ]
+    if rem_display:
+        lines.append(f"⏰ Your reminder: {rem_display}")
+    if notify_at:
+        lines.append(f"📲 Customer notified: {notify_label}")
+
+    # Payment line
+    pay_id = payment_id or (existing["id"] if (existing := (get_payment_for_reminder(reminder_id) if reminder_id else None)) else None)
+    if pay_id:
+        from repositories.payment_repository import get_payment_by_id
+        pay = get_payment_by_id(pay_id) if hasattr(__import__('repositories.payment_repository', fromlist=['get_payment_by_id']), 'get_payment_by_id') else None
+        if pay and pay.get("total") and float(pay["total"]) > 0:
+            bal = float(pay["total"]) - float(pay.get("advance") or 0)
+            if bal <= 0:
+                lines.append("💰 Fully paid ✅")
+            else:
+                lines.append(f"💰 Rs.{float(pay.get('advance') or 0):.0f} paid · Rs.{bal:.0f} balance due")
+
+    lines.append(f"\n_edit · reminders · unpaid_")
+    clear_state(phone)
+    send_whatsapp_message(phone, "\n".join(lines), show_help=False)
     return True
 
 

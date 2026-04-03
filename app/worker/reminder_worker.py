@@ -23,23 +23,24 @@ def log(msg: str):
 
 
 def _build_customer_message(task: str, due_at, business_name: str, business_type: str, balance: float) -> str:
-    due_str = ""
-    if due_at:
-        if isinstance(due_at, str):
-            due_at = datetime.fromisoformat(due_at)
-        due_str = due_at.strftime('%d %b %Y at %I:%M %p')
+    if due_at and isinstance(due_at, str):
+        due_at = datetime.fromisoformat(due_at)
 
-    balance_line = f"\n💰 Balance due: Rs.{balance:.0f}" if balance > 0 else ""
+    time_str = due_at.strftime("%-I:%M %p") if due_at and due_at.minute != 0 else (due_at.strftime("%-I %p") if due_at else "")
 
-    templates = {
-        "baker":       f"Hi! 🎂 Your order from *{business_name}* is ready on *{due_str}*.{balance_line}\nPlease carry the exact amount. Thank you!",
-        "salon":       f"Hi! ✂️ Reminder from *{business_name}* — your appointment is on *{due_str}*.{balance_line}\nSee you soon!",
-        "tailor":      f"Hi! 🧵 Your clothes from *{business_name}* will be ready on *{due_str}*.{balance_line}\nPlease collect at your convenience.",
-        "tiffin":      f"Hi! 🍱 Your tiffin order from *{business_name}* is confirmed for *{due_str}*.{balance_line}",
-        "photography": f"Hi! 📸 Reminder from *{business_name}* — your session is on *{due_str}*.{balance_line}\nLooking forward to it!",
-    }
+    balance_line = (
+        f"\n\n💰 *Balance due: Rs.{balance:.0f}*"
+        if balance > 0 else ""
+    )
 
-    return templates.get(business_type, f"Hi! Reminder from *{business_name}* — {task}.\nDate: *{due_str}*.{balance_line}")
+    time_line = f"\n⏰ *Today at {time_str}*" if time_str else ""
+
+    return (
+        f"Hi! 👋\n\n"
+        f"Heads up! Your order from *{business_name}* is scheduled for *today*.{time_line}"
+        f"{balance_line}\n\n"
+        f"Have a great day! 😊"
+    )
 
 
 def _ist_now():
