@@ -458,49 +458,79 @@ def handle_expired_state(phone: str, text: str, state: dict, user: dict):
 # Intent router (unchanged logic)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _send_help(phone: str):
-    send_whatsapp_message(
-        phone,
-        "📖 *All Commands*\n\n"
+def _send_help(phone: str, topic: str = ""):
+    topic = topic.strip().lower()
 
-        "━━ 📦 *Save an order* ━━\n"
-        "Just send it naturally — I'll remind you automatically:\n\n"
-        "_Anjali cake 14 Apr 6pm_\n"
-        "_Priya blouse 20 Apr 11am total 1200 advance 300_\n"
-        "_Meena saree next friday 5pm 9876543210_\n\n"
+    if topic in ("orders", "order", "save", "saving"):
+        send_whatsapp_message(
+            phone,
+            "📦 *Save an order — just send naturally:*\n\n"
+            "_Anjali cake 14 Apr 6pm_\n"
+            "_Priya blouse 20 Apr 11am_\n"
+            "_Meena saree next friday 5pm_\n\n"
+            "I'll confirm before saving anything.\n\n"
+            "📅 *Dates you can use:*\n"
+            "today · tomorrow · next friday\n"
+            "14 Apr · 14th April · April 14\n"
+            "next week monday · in 3 days",
+            show_help=False
+        )
 
-        "━━ 📋 *See your orders* ━━\n"
-        "*reminders* → full calendar view\n"
-        "*unpaid* → who still owes you\n"
-        "*earnings* → this month's income\n\n"
+    elif topic in ("payments", "payment", "pay", "track", "paid"):
+        send_whatsapp_message(
+            phone,
+            "💰 *Payments — 3 ways:*\n\n"
+            "*1️⃣ Include when saving:*\n"
+            "_Anjali cake 14 Apr 6pm total 1200 advance 300_\n\n"
+            "*2️⃣ Add to an existing order:*\n"
+            "_edit → payment 1200 advance 300_\n"
+            "_edit → payment done_  (fully paid)\n\n"
+            "*3️⃣ Standalone (no reminder created):*\n"
+            "_track Anjali total 1200 advance 300_\n\n"
+            "*Mark as collected:*\n"
+            "Send *unpaid* → then *paid 2*\n"
+            "_(use the number shown in the list)_",
+            show_help=False
+        )
 
-        "━━ 💰 *Payments* ━━\n"
-        "Include when saving an order:\n"
-        "_Anjali cake 14 Apr 6pm total 1200 advance 300_\n\n"
-        "Add to an order already saved:\n"
-        "_edit → payment 1200 advance 300_\n"
-        "_edit → payment done_ (fully paid)\n\n"
-        "Standalone (no order/reminder created):\n"
-        "_track Anjali total 1200 advance 300_\n\n"
-        "Mark collected:\n"
-        "*paid 2* → mark unpaid #2 as fully paid\n"
-        "_(send *unpaid* first to see the numbers)_\n\n"
+    elif topic in ("delete", "remove", "del"):
+        send_whatsapp_message(
+            phone,
+            "🗑️ *Delete orders:*\n\n"
+            "*delete 2* → remove one\n"
+            "*delete 1 3 5* → remove several at once\n"
+            "*delete all* → clear everything\n\n"
+            "_Send *reminders* first to see the numbers._",
+            show_help=False
+        )
 
-        "━━ ✏️ *Edit & delete* ━━\n"
-        "*edit* → update your last saved order\n"
-        "*delete 2* → remove order #2\n"
-        "*delete 1 3 5* → remove multiple at once\n"
-        "*delete all* → clear everything\n"
-        "_(send *reminders* first to see the numbers)_\n\n"
+    elif topic in ("notify", "notification", "customer", "whatsapp"):
+        send_whatsapp_message(
+            phone,
+            "📞 *Notify your customer automatically:*\n\n"
+            "Add their number when saving:\n"
+            "_Priya cake 14 Apr 6pm 9876543210_\n\n"
+            "They get a WhatsApp when their order is ready.\n"
+            "No extra steps needed from you. 📱",
+            show_help=False
+        )
 
-        "━━ 📞 *Notify your customer* ━━\n"
-        "Add their number when saving:\n"
-        "_Priya cake 14 Apr 6pm 9876543210_\n"
-        "They get a WhatsApp when their order is ready 📱\n\n"
-
-        "*help* → this list anytime",
-        show_help=False
-    )
+    else:
+        # Default — short overview
+        send_whatsapp_message(
+            phone,
+            "📖 *Commands*\n\n"
+            "📦 *save* — just send the order naturally\n"
+            "📋 *reminders* — see upcoming orders\n"
+            "💰 *unpaid* — who still owes you\n"
+            "📊 *earnings* — this month's income\n"
+            "✏️ *edit* — update last saved order\n"
+            "🗑️ *delete 2* — remove an order\n\n"
+            "For details, send:\n"
+            "*help orders*  ·  *help payments*\n"
+            "*help delete*  ·  *help notify*",
+            show_help=False
+        )
 
 
 def route_intent(user_id: str, phone: str, text: str):
@@ -508,9 +538,10 @@ def route_intent(user_id: str, phone: str, text: str):
 
     text_lower = text.lower().strip()
 
-    # Help & examples
-    if text_lower in ("help", "menu", "commands", "how", "examples"):
-        _send_help(phone)
+    # Help & examples — "help", "help payments", "help orders" etc.
+    if text_lower in ("help", "menu", "commands", "how", "examples") or text_lower.startswith("help "):
+        topic = text_lower[5:].strip() if text_lower.startswith("help ") else ""
+        _send_help(phone, topic)
         return
 
     # Earnings / monthly income summary
