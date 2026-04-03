@@ -182,69 +182,69 @@ def _nudge_day14(user: dict, stats: dict) -> str:
     return "\n".join(lines)
 
 
+# ── Core nudge logic (shared between standalone and inline mode) ──────────────
+
+def _compute_nudge_text(user: dict) -> tuple:
+    """Return (nudge_day, nudge_text) if a nudge is due, else (None, None)."""
+    trial_started = user.get("trial_started_at")
+    if not trial_started:
+        return None, None
+
+    now = datetime.utcnow()
+    if hasattr(trial_started, 'tzinfo') and trial_started.tzinfo is not None:
+        from datetime import timezone
+        days_in = (datetime.now(timezone.utc) - trial_started).days
+    else:
+        days_in = (now - trial_started).days
+
+    already_sent = set(user["nudges_sent"].split(",")) if user.get("nudges_sent") else set()
+    user_id = user["id"]
+
+    try:
+        if days_in >= 3 and "3" not in already_sent:
+            reminders = get_user_reminders(user_id)
+            return 3, _nudge_day3(user, len(reminders))
+        elif days_in >= 7 and "7" not in already_sent:
+            stats = get_trial_stats(user_id)
+            return 7, _nudge_day7(user, stats)
+        elif days_in >= 14 and "14" not in already_sent:
+            stats = get_trial_stats(user_id)
+            return 14, _nudge_day14(user, stats)
+    except Exception as e:
+        logger.error("Nudge compute error for %s***: %s", user_id[:6], e)
+
+    return None, None
+
+
 # ── Main runner ───────────────────────────────────────────────────────────────
 
-def run_nudge_worker():
-    """Run once — checks all trial users and sends due nudges."""
+def run_nudge_worker(user_only: dict = None):
+    """Run nudge logic.
+
+    user_only: if provided, compute nudge text for that single user and return
+               it as a string (caller handles sending). Does NOT mark as sent —
+               the morning summary worker will call _mark_nudge_sent separately.
+    """
     _ensure_nudges_column()
 
+    # ── Inline mode: return text for one user (called from morning summary) ──
+    if user_only is not None:
+        day, text = _compute_nudge_text(user_only)
+        if day and text:
+            _mark_nudge_sent(user_only["id"], day)
+        return text  # None if no nudge due
+
+    # ── Standalone mode: send to all eligible users ───────────────────────────
     users = _get_trial_users()
     sent = 0
-    now = datetime.utcnow()
 
     for user in users:
-        user_id = user["id"]
-        trial_started = user["trial_started_at"]
-        if not trial_started:
-            continue
-
-        # Handle timezone-aware vs naive datetime
-        if hasattr(trial_started, 'tzinfo') and trial_started.tzinfo is not None:
-            from datetime import timezone
-            now_aware = datetime.now(timezone.utc)
-            days_in = (now_aware - trial_started).days
-        else:
-            days_in = (now - trial_started).days
-
-        already_sent = set(user["nudges_sent"].split(",")) if user["nudges_sent"] else set()
-
-        try:
-            # Fetch stats once for day 7 and 14 nudges
-            stats = None
-
-            # ── Day 3 nudge ──────────────────────────────────────────────
-            if days_in >= 3 and "3" not in already_sent:
-                reminders = get_user_reminders(user_id)
-                msg = _nudge_day3(user, len(reminders))
-                send_whatsapp_message(user_id, msg, show_help=False)
-                _mark_nudge_sent(user_id, 3)
-                already_sent.add("3")
-                sent += 1
-                logger.info("Day 3 nudge sent to %s***", user_id[:6])
-
-            # ── Day 7 nudge ──────────────────────────────────────────────
-            elif days_in >= 7 and "7" not in already_sent:
-                if stats is None:
-                    stats = get_trial_stats(user_id)
-                msg = _nudge_day7(user, stats)
-                send_whatsapp_message(user_id, msg, show_help=False)
-                _mark_nudge_sent(user_id, 7)
-                already_sent.add("7")
-                sent += 1
-                logger.info("Day 7 nudge sent to %s***", user_id[:6])
-
-            # ── Day 14 nudge ─────────────────────────────────────────────
-            elif days_in >= 14 and "14" not in already_sent:
-                if stats is None:
-                    stats = get_trial_stats(user_id)
-                msg = _nudge_day14(user, stats)
-                send_whatsapp_message(user_id, msg, show_help=False)
-                _mark_nudge_sent(user_id, 14)
-                sent += 1
-                logger.info("Day 14 nudge sent to %s***", user_id[:6])
-
-        except Exception as e:
-            logger.error("Nudge error for %s***: %s", user_id[:6], e)
+        day, text = _compute_nudge_text(user)
+        if day and text:
+            send_whatsapp_message(user["id"], text, show_help=False)
+            _mark_nudge_sent(user["id"], day)
+            sent += 1
+            logger.info("Day %d nudge sent to %s***", day, user["id"][:6])
 
     logger.info("Nudge worker done — sent %d nudges to %d users", sent, len(users))
     return sent

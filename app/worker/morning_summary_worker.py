@@ -9,15 +9,51 @@ def log(msg: str):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [MORNING] {msg}")
 
 
+def _to_dt(val):
+    if val is None:
+        return None
+    if isinstance(val, str):
+        return datetime.fromisoformat(val)
+    return val
+
+
+def _fmt_time(dt) -> str:
+    """6 PM or 6:30 PM — no leading zero."""
+    if not dt:
+        return "—"
+    return dt.strftime("%-I %p") if dt.minute == 0 else dt.strftime("%-I:%M %p")
+
+
+def _fmt_date(dt) -> str:
+    """Mon 6 Apr"""
+    if not dt:
+        return "—"
+    return dt.strftime("%a %-d %b")
+
+
+def _pay_line(r: dict) -> str:
+    total   = r.get("total")
+    advance = r.get("advance")
+    balance = r.get("balance")
+    if not total or float(total) <= 0:
+        return ""
+    bal = float(balance or 0)
+    adv = float(advance or 0)
+    if bal <= 0:
+        return "      💚 Fully paid"
+    if adv > 0:
+        return f"      💰 Rs.{int(adv)} paid  ·  *Rs.{int(bal)} due*"
+    return f"      💰 *Rs.{int(float(total))} due*"
+
+
 def run_morning_summary():
     log("Running morning summary")
     users = get_summary_users()
     sent = skipped = 0
 
     for user in users:
-        user_id       = user["id"]
-        business_name = user.get("business_name") or "there"
-        first_name    = business_name.split()[0]
+        user_id    = user["id"]
+        first_name = (user.get("business_name") or "there").split()[0]
 
         try:
             today     = get_today_reminders(user_id)
@@ -30,30 +66,65 @@ def run_morning_summary():
                 skipped += 1
                 continue
 
-            lines = [f"Good morning, *{first_name}*! ☀️"]
+            now_str = datetime.now().strftime("%-d %b")
+            lines   = [f"☀️ *Good morning, {first_name}!*\n"]
 
+            # ── Today ──────────────────────────────────────────────────────
             if today:
-                lines.append(
-                    f"\nToday — {datetime.now().strftime('%d %b')} "
-                    f"({len(today)} reminder{'s' if len(today) > 1 else ''}):\n"
-                )
+                lines.append(f"*📅 Today — {now_str}  ({len(today)} order{'s' if len(today)>1 else ''})*")
                 for i, r in enumerate(today, 1):
-                    dt = r["reminder_time"]
-                    if isinstance(dt, str):
-                        dt = datetime.fromisoformat(dt)
-                    lines.append(f"{i}. {r['task']} ⏰ {dt.strftime('%I:%M %p')}")
+                    task    = r.get("task") or "—"
+                    due_dt  = _to_dt(r.get("due_at"))
+                    rem_dt  = _to_dt(r.get("reminder_time"))
+                    pay     = _pay_line(r)
+
+                    lines.append(f"\n{i}. *{task.capitalize()}*")
+                    lines.append(f"      📅 Due: {_fmt_time(due_dt)}")
+                    lines.append(f"      🔔 Remind: {_fmt_time(rem_dt)}")
+                    if pay:
+                        lines.append(pay)
             else:
-                lines.append("\nNo reminders today — enjoy the break! ☕")
+                lines.append(f"*📅 Today — {now_str}*")
+                lines.append("No orders today — enjoy the break! ☕")
 
+            # ── Coming up ──────────────────────────────────────────────────
             if upcoming:
-                lines.append("\n*Coming up:*")
-                for r in upcoming[:3]:
-                    dt = r["reminder_time"]
-                    if isinstance(dt, str):
-                        dt = datetime.fromisoformat(dt)
-                    lines.append(f"• {r['task']} — {dt.strftime('%d %b %I:%M %p')}")
+                lines.append(f"\n*📆 Coming up*")
+                for r in upcoming[:4]:
+                    task   = r.get("task") or "—"
+                    due_dt = _to_dt(r.get("due_at"))
+                    rem_dt = _to_dt(r.get("reminder_time"))
+                    pay    = _pay_line(r)
 
-            lines.append("\nReply *reminders* to see all · *help* for commands")
+                    lines.append(f"\n• *{task.capitalize()}*  —  {_fmt_date(due_dt)}")
+                    lines.append(f"      📅 Due: {_fmt_time(due_dt)}  ·  🔔 Remind: {_fmt_time(rem_dt)}")
+                    if pay:
+                        lines.append(pay)
+
+            # ── Total unpaid ───────────────────────────────────────────────
+            total_unpaid = sum(
+                float(r.get("balance") or 0)
+                for r in all_r
+                if r.get("balance") and float(r["balance"]) > 0
+            )
+            if total_unpaid > 0:
+                lines.append(f"\n💸 *Rs.{int(total_unpaid)} pending* across all orders")
+
+            # ── Nudge tip (no second message) ──────────────────────────────
+            try:
+                nudge_text = run_nudge_worker(user_only=user)
+                if nudge_text:
+                    tip = "\n".join(
+                        l for l in nudge_text.splitlines()
+                        if l.strip() and not l.strip().startswith("Hey ")
+                    ).strip()
+                    if tip:
+                        lines.append(f"\n💡 {tip}")
+            except Exception:
+                pass
+
+            # ── Footer ─────────────────────────────────────────────────────
+            lines.append("\n_reminders  ·  unpaid  ·  help_")
 
             send_whatsapp_message(user_id, "\n".join(lines), show_help=False)
             mark_summary_sent(user_id)
@@ -63,10 +134,3 @@ def run_morning_summary():
             log(f"Error for {user_id}: {e}")
 
     log(f"Done — sent: {sent}, skipped: {skipped}")
-
-    # Run nudge worker daily after morning summary
-    try:
-        nudges_sent = run_nudge_worker()
-        log(f"Nudge worker done — {nudges_sent} nudges sent")
-    except Exception as e:
-        log(f"Nudge worker error: {e}")
