@@ -468,23 +468,31 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
         else:
             date_val = ""
 
-        task_val    = (current.get("task") or "").strip()
-        phone_val   = (current.get("customer_phone") or "")[-10:] if current.get("customer_phone") else ""
-        total_val   = str(int(current["total"])) if current.get("total") else ""
-        advance_val = str(int(current["advance"])) if current.get("advance") else ""
-
-        reminder_val = "2hrs before"  # default; shown so vendor knows they can change it
+        task_val  = (current.get("task") or "").strip()
+        phone_val = (current.get("customer_phone") or "")[-10:] if current.get("customer_phone") else "not set"
+        total     = current.get("total")
+        advance   = current.get("advance")
+        if total and float(total) > 0:
+            bal = float(total) - float(advance or 0)
+            pay_val = f"Rs.{int(float(total))} total · Rs.{int(float(advance or 0))} paid · Rs.{int(bal)} due"
+        else:
+            pay_val = "not set"
 
         set_state(phone, {"step": "awaiting_edit", "reminder_id": reminder_id})
         send_whatsapp_message(
             phone,
-            f"✏️ *Update and send back:*\n\n"
-            f"Task: {task_val}\n"
-            f"Date: {date_val}\n"
-            f"Reminder: {reminder_val}\n"
-            f"Customer Phone (to notify them): {phone_val}\n"
-            f"Total: {total_val}\n"
-            f"Advance: {advance_val}",
+            f"✏️ *Update your order:*\n\n"
+            f"📝 Task: {task_val}\n"
+            f"📅 Due: {date_val}\n"
+            f"💰 Payment: {pay_val}\n"
+            f"📞 Customer: {phone_val}\n\n"
+            f"Reply with what you want to change:\n"
+            f"_task Meena blouse_\n"
+            f"_date 15 Apr 6pm_\n"
+            f"_payment 1200 advance 300_\n"
+            f"_payment 1200_ (full amount due)\n"
+            f"_payment done_ (fully paid)\n"
+            f"_phone 9876543210_",
             show_help=False
         )
         return True
@@ -597,54 +605,167 @@ def _handle_awaiting_confirm(user_id: str, phone: str, text: str, state: dict) -
 
 
 def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> bool:
-    """Parse the corrected message and update the existing reminder in place."""
-    from repositories.reminder_repository import update_reminder
+    """Handle partial or full updates to an existing reminder."""
+    import re as _re
+    from repositories.reminder_repository import update_reminder, get_reminder_by_id
 
     reminder_id = state.get("reminder_id")
-    extracted   = extract_reminder_details(text, phone)
-    due_date    = extracted.get("date")
-    due_time    = extracted.get("time") or "09:00"
-    task        = extracted.get("task") or text.strip()
+    t = text.strip().lower()
+
+    # ── payment done / payment 1200 / payment 1200 advance 300 ───────────
+    if t.startswith("payment") or t.startswith("paid"):
+        current = get_reminder_by_id(reminder_id, user_id)
+        task    = current.get("task", "") if current else ""
+
+        if "done" in t or "full" in t:
+            # Fully paid — get total from existing payment or text
+            from repositories.payment_repository import get_payment_for_reminder, update_payment_notify
+            existing = get_payment_for_reminder(reminder_id) if reminder_id else None
+            total = float(existing["total"]) if existing and existing.get("total") else 0
+            if total == 0:
+                send_whatsapp_message(phone,
+                    "⚠️ No total amount set. Use:\n_payment 1200 done_", show_help=False)
+                return True
+            from repositories.payment_repository import create_payment
+            create_payment(user_id=user_id, reminder_id=reminder_id,
+                           customer=_extract_customer(task),
+                           total=total, advance=total, customer_phone=None, notify_customer=False)
+            clear_state(phone)
+            send_whatsapp_message(phone,
+                f"✅ *Payment updated!*\n\n📝 {task}\n💰 Rs.{int(total)} — Fully paid ✅\n\n"
+                f"_edit · reminders_", show_help=False)
+            return True
+
+        total_m   = _re.search(r'\b(?:payment|total|paid)?\s*(\d+)\b', t)
+        advance_m = _re.search(r'\b(?:advance|paid)\s+(\d+)\b', t)
+        if not total_m:
+            send_whatsapp_message(phone,
+                "⚠️ Include the amount:\n_payment 1200_\n_payment 1200 advance 300_\n_payment done_",
+                show_help=False)
+            return True
+
+        total   = float(total_m.group(1))
+        advance = float(advance_m.group(1)) if advance_m else 0.0
+        advance = min(advance, total)
+        balance = total - advance
+
+        from repositories.payment_repository import create_payment
+        create_payment(user_id=user_id, reminder_id=reminder_id,
+                       customer=_extract_customer(task),
+                       total=total, advance=advance, customer_phone=None, notify_customer=False)
+
+        pay_line = (f"💰 Rs.{int(advance)} paid · Rs.{int(balance)} balance due"
+                    if balance > 0 else "💰 Fully paid ✅")
+        clear_state(phone)
+        send_whatsapp_message(phone,
+            f"✅ *Payment updated!*\n\n📝 {task}\n{pay_line}\n\n_edit · reminders_",
+            show_help=False)
+        return True
+
+    # ── phone 9876543210 ──────────────────────────────────────────────────
+    if t.startswith("phone "):
+        digits = _re.sub(r'\D', '', text)
+        if len(digits) >= 10:
+            from repositories.reminder_repository import update_reminder
+            current = get_reminder_by_id(reminder_id, user_id)
+            if current:
+                due_at = current.get("due_at") or current.get("reminder_time")
+                if due_at and isinstance(due_at, str):
+                    from datetime import datetime as _dt
+                    due_at = _dt.fromisoformat(due_at)
+                update_reminder(reminder_id, user_id,
+                                current.get("task", ""),
+                                _default_reminder_time(due_at) if due_at else None)
+            clear_state(phone)
+            send_whatsapp_message(phone,
+                f"✅ Customer phone updated: {digits[-10:]}\n\n_edit · reminders_",
+                show_help=False)
+        else:
+            send_whatsapp_message(phone, "⚠️ Send a valid 10-digit number:\n_phone 9876543210_",
+                                  show_help=False)
+        return True
+
+    # ── task <new name> ───────────────────────────────────────────────────
+    if t.startswith("task "):
+        new_task = text[5:].strip()
+        current  = get_reminder_by_id(reminder_id, user_id)
+        if current and new_task:
+            due_at = current.get("due_at") or current.get("reminder_time")
+            if due_at and isinstance(due_at, str):
+                from datetime import datetime as _dt
+                due_at = _dt.fromisoformat(due_at)
+            rem_dt = _default_reminder_time(due_at) if due_at else None
+            update_reminder(reminder_id, user_id, new_task, rem_dt)
+            clear_state(phone)
+            send_whatsapp_message(phone,
+                f"✅ Task updated: {new_task}\n\n_edit · reminders_", show_help=False)
+        return True
+
+    # ── date <new date/time> ──────────────────────────────────────────────
+    if t.startswith("date "):
+        date_text = text[5:].strip()
+        extracted = extract_reminder_details(date_text, phone)
+        due_date  = extracted.get("date")
+        due_time  = extracted.get("time") or "09:00"
+        if not due_date:
+            send_whatsapp_message(phone,
+                "⚠️ Couldn't read that date.\nTry: _date 15 Apr 6pm_", show_help=False)
+            return True
+        current = get_reminder_by_id(reminder_id, user_id)
+        task    = current.get("task", "") if current else ""
+        due_dt  = _build_due_datetime(due_date, due_time)
+        rem_dt  = _default_reminder_time(due_dt)
+        update_reminder(reminder_id, user_id, task, rem_dt, due_date, due_time)
+        clear_state(phone)
+        send_whatsapp_message(phone,
+            f"✅ *Date updated!*\n\n📝 {task}\n"
+            f"📅 Due: {due_dt.strftime('%-d %b %I:%M %p')}\n"
+            f"🔔 Remind: {rem_dt.strftime('%-d %b %I:%M %p')}\n\n_edit · reminders_",
+            show_help=False)
+        return True
+
+    # ── Full message fallback (old format: "Anjali cake 15 Apr 6pm") ─────
+    extracted = extract_reminder_details(text, phone)
+    due_date  = extracted.get("date")
+    due_time  = extracted.get("time") or "09:00"
+    task      = extracted.get("task") or text.strip()
 
     if not due_date:
         send_whatsapp_message(
             phone,
-            "⚠️ I couldn't find a date in that message.\n\n"
-            "Please include a date, e.g. _Anjali cake 15th April 6pm_"
+            "⚠️ I didn't understand that.\n\n"
+            "Update one field at a time:\n"
+            "_task Meena blouse_\n"
+            "_date 15 Apr 6pm_\n"
+            "_payment 1200 advance 300_\n"
+            "_payment done_\n"
+            "_phone 9876543210_",
+            show_help=False
         )
         return True
 
-    due_dt       = _build_due_datetime(due_date, due_time)
-    reminder_dt  = _default_reminder_time(due_dt)
-    due_display  = due_dt.strftime('%d %b %Y %I:%M %p')
-    rem_display  = reminder_dt.strftime('%d %b %Y %I:%M %p')
+    due_dt      = _build_due_datetime(due_date, due_time)
+    reminder_dt = _default_reminder_time(due_dt)
+    update_reminder(reminder_id, user_id, task, reminder_dt, due_date, due_time)
 
-    ok = update_reminder(reminder_id, user_id, task, reminder_dt, due_date, due_time)
-    if not ok:
-        clear_state(phone)
-        send_whatsapp_message(phone, "⚠️ Could not update — reminder may have already fired.")
-        return True
-
-    # Handle payment fields if present
     total   = extracted.get("total")
     advance = extracted.get("advance") or 0
-    customer_phone = extracted.get("customer_phone")
-    if total is not None:
+    if total:
         from repositories.payment_repository import create_payment
-        customer = _extract_customer(task)
-        create_payment(
-            user_id=user_id, reminder_id=reminder_id, customer=customer,
-            total=float(total), advance=float(advance), customer_phone=customer_phone
-        )
+        create_payment(user_id=user_id, reminder_id=reminder_id,
+                       customer=_extract_customer(task),
+                       total=float(total), advance=float(advance),
+                       customer_phone=None, notify_customer=False)
 
-    set_state(phone, {"step": "just_saved", "reminder_id": reminder_id})
+    clear_state(phone)
     send_whatsapp_message(
         phone,
         f"✅ *Updated!*\n\n"
         f"📝 {task}\n"
-        f"📅 Due: {due_display}\n"
-        f"⏰ Reminder: {rem_display}\n\n"
-        f"Reply *edit* to change again  ·  *reminders* to see all"
+        f"📅 Due: {due_dt.strftime('%-d %b %I:%M %p')}\n"
+        f"🔔 Remind: {reminder_dt.strftime('%-d %b %I:%M %p')}\n\n"
+        f"_edit · reminders_",
+        show_help=False
     )
     return True
 

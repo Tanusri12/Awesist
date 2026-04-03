@@ -474,9 +474,15 @@ def _send_help(phone: str):
         "*unpaid* → who still owes you\n"
         "*earnings* → this month's income\n\n"
 
-        "━━ 💰 *Track payments* ━━\n"
-        "*track Anjali total 1200* → log a payment\n"
-        "*track Anjali total 1200 advance 300* → partial\n"
+        "━━ 💰 *Payments* ━━\n"
+        "Include when saving an order:\n"
+        "_Anjali cake 14 Apr 6pm total 1200 advance 300_\n\n"
+        "Add to an order already saved:\n"
+        "_edit → payment 1200 advance 300_\n"
+        "_edit → payment done_ (fully paid)\n\n"
+        "Standalone (no order/reminder created):\n"
+        "_track Anjali total 1200 advance 300_\n\n"
+        "Mark collected:\n"
         "*paid 2* → mark unpaid #2 as fully paid\n"
         "_(send *unpaid* first to see the numbers)_\n\n"
 

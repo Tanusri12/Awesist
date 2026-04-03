@@ -164,21 +164,23 @@ def handle_track_payment(user_id: str, phone: str, text: str):
     balance = total - advance
     if balance > 0:
         msg = (
-            f"✅ *{customer}* — payment tracked!\n\n"
-            f"💰 Total: ₹{total:.0f}\n"
-            f"✅ Advance: ₹{advance:.0f}\n"
-            f"⏳ Balance due: *₹{balance:.0f}*\n\n"
-            "When collected:\n"
-            "1️⃣ Send *unpaid* to see your list\n"
-            "2️⃣ Send *paid 1* (or the number next to their name)"
+            f"✅ *Payment tracked — {customer}*\n\n"
+            f"💰 Total: Rs.{total:.0f}\n"
+            f"✅ Paid: Rs.{advance:.0f}\n"
+            f"⏳ Balance due: *Rs.{balance:.0f}*\n\n"
+            f"⚠️ _No order or reminder created._\n\n"
+            "When balance is collected:\n"
+            "Send *unpaid* → then *paid 1* (use the number shown)"
         )
     else:
         msg = (
-            f"✅ *{customer}* — fully paid! ₹{total:.0f} recorded.\n\n"
+            f"✅ *Payment tracked — {customer}*\n\n"
+            f"💰 Rs.{total:.0f} — Fully paid ✅\n\n"
+            f"⚠️ _No order or reminder created._\n\n"
             "Reply *earnings* to see this month's collections."
         )
 
-    send_whatsapp_message(phone, msg)
+    send_whatsapp_message(phone, msg, show_help=False)
 
 
 def handle_earnings(user_id: str, phone: str, text: str):
