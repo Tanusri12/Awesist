@@ -352,7 +352,7 @@ def get_pending_customer_notifications() -> list:
               AND p.customer_notified = FALSE
               AND p.customer_phone IS NOT NULL
               AND p.customer_notify_at IS NOT NULL
-              AND p.customer_notify_at <= NOW()
+              AND p.customer_notify_at <= (NOW() AT TIME ZONE 'Asia/Kolkata')
               AND p.status = 'pending'
             """
         )

@@ -63,7 +63,8 @@ def fetch_and_lock_due_reminders(limit: int = 20):
             UPDATE reminders SET status = 'processing'
             WHERE id IN (
                 SELECT id FROM reminders
-                WHERE status = 'pending' AND reminder_time <= NOW()
+                WHERE status = 'pending'
+                  AND reminder_time <= (NOW() AT TIME ZONE 'Asia/Kolkata')
                 ORDER BY reminder_time
                 LIMIT %s FOR UPDATE SKIP LOCKED
             )
@@ -237,7 +238,7 @@ def get_today_reminders(user_id: str) -> list:
             FROM reminders
             WHERE user_id = %s
             AND status = 'pending'
-            AND DATE(reminder_time) = CURRENT_DATE
+            AND DATE(reminder_time) = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date
             ORDER BY reminder_time
             """,
             (user_id,)

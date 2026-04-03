@@ -42,8 +42,15 @@ def _build_customer_message(task: str, due_at, business_name: str, business_type
     return templates.get(business_type, f"Hi! Reminder from *{business_name}* — {task}.\nDate: *{due_str}*.{balance_line}")
 
 
+def _ist_now():
+    """Current datetime in IST (UTC+5:30). No external lib needed."""
+    from datetime import timezone, timedelta
+    IST = timezone(timedelta(hours=5, minutes=30))
+    return datetime.now(IST)
+
+
 def maybe_send_morning_summary():
-    if datetime.now().hour != MORNING_SUMMARY_HOUR:
+    if _ist_now().hour != MORNING_SUMMARY_HOUR:
         return
     try:
         run_morning_summary()
