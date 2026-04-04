@@ -105,7 +105,7 @@ def handle_list_reminders(user_id: str, phone: str):
         lines.append(f"💰 *Rs.{int(total_unpaid)} total pending*")
         lines.append("")
 
-    lines.append("delete 1  ·  unpaid  ·  earnings")
+    lines.append("Reply *unpaid* · *earnings* · *help*")
 
     send_whatsapp_message(phone, "\n".join(lines), show_help=False)
 

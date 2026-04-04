@@ -30,7 +30,8 @@ def handle_unpaid(user_id: str, phone: str):
         )
     message += f"Total pending: *Rs.{total_pending:.0f}*\n\n"
     message += "*paid <number>* → mark collected  ·  *paid all* → clear all\n"
-    message += "*remove <number>* → delete an entry"
+    message += "*remove <number>* → delete an entry\n\n"
+    message += "Reply *earnings* · *help*"
     send_whatsapp_message(phone, message)
 
 
@@ -210,7 +211,8 @@ def handle_earnings(user_id: str, phone: str, text: str):
             phone,
             f"📊 *Earnings — {label}*\n\n"
             f"No payments collected in {label}.\n\n"
-            "To record a payment: send *unpaid* → then *paid <number>*"
+            "To record a payment: send *unpaid* → then *paid <number>*\n\n"
+            "Reply *unpaid* · *help*"
         )
         return
 
@@ -233,9 +235,9 @@ def handle_earnings(user_id: str, phone: str, text: str):
             rest = len(data["customers"]) - 5
             msg += f"  + {rest} more customer{'s' if rest > 1 else ''}\n"
 
-    # Gentle nudge to mark anything still pending
-    msg += "\nReply *unpaid* to see pending balances."
+    # Footer
     if "last month" not in text_lower:
         msg += "\nReply *earnings last month* to compare."
+    msg += "\n\nReply *unpaid* · *help*"
 
     send_whatsapp_message(phone, msg)
