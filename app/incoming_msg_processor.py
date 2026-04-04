@@ -83,7 +83,7 @@ def process_message(data: dict):
                 phone,
                 "⚠️ That message is too long — please keep it short.\n\n"
                 "Orders should be brief, like:\n"
-                "_Anjali cake 13 Apr 5pm total 1200 advance 300_",
+                "Anjali cake 13 Apr 5pm total 1200 advance 300",
                 show_help=False
             )
             return
@@ -100,7 +100,7 @@ def process_message(data: dict):
                 phone,
                 "Sorry, I currently only understand English. 🙏\n\n"
                 "Please send your message in English — for example:\n"
-                "_Anjali cake 13th April 5pm_",
+                "Anjali cake 13th April 5pm",
                 show_help=False
             )
             return
@@ -183,9 +183,9 @@ def process_message(data: dict):
                     else:
                         lines.append("\n💰 No pending balances")
 
-                    lines.append("\nReply *reminders* · *unpaid* · *earnings*")
+                    lines.append("\nReply *reminders* · *unpaid* · *earnings* · *help*")
                     lines.append("Or save a new booking:")
-                    lines.append("_Anjali cake 14 Apr 6pm_")
+                    lines.append("Anjali cake 14 Apr 6pm")
 
                     send_whatsapp_message(phone, "\n".join(lines), show_help=False)
             return
@@ -426,7 +426,7 @@ def handle_expired_state(phone: str, text: str, state: dict, user: dict):
             ),
             "awaiting_time": (
                 f"When is *{task}* due?\n\n"
-                f"e.g. _tomorrow at 6pm_  or  _13th April 3pm_"
+                f"e.g. tomorrow at 6pm  or  13th April 3pm"
             ),
         }
         msg = step_messages.get(step, f"Continuing with *{task}*. Reply *cancel* to start fresh.")
@@ -439,7 +439,7 @@ def handle_expired_state(phone: str, text: str, state: dict, user: dict):
             phone,
             "No problem! Starting fresh. 👍\n\n"
             "Just tell me what you want to remember:\n\n"
-            "• _Send cake to Anjali on 13th April at 6pm_",
+            "• Send cake to Anjali on 13th April at 6pm",
             show_help=False
         )
         return
