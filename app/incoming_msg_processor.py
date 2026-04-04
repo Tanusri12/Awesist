@@ -556,12 +556,12 @@ def _send_help(phone: str, topic: str = ""):
         send_whatsapp_message(
             phone,
             "📖 *Commands*\n\n"
-            "📦 *save* — just send the order naturally\n"
+            "📦 *new order* — just type: Anjali cake 14 Apr 6pm\n"
             "📋 *reminders* — see upcoming orders\n"
             "💰 *unpaid* — who still owes you\n"
             "📊 *earnings* — this month's income\n"
             "✏️ *edit* — update last saved order\n"
-            "🗑️ *delete 2* — remove an order\n\n"
+            "🗑️ *delete* — send *reminders* → then *delete 2* (use the number shown)\n\n"
             "For details, send:\n"
             "*help orders*  ·  *help payments*\n"
             "*help earnings*  ·  *help delete*  ·  *help notify*",
