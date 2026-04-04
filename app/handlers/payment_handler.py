@@ -11,7 +11,7 @@ from whatsapp import send_whatsapp_message
 def handle_unpaid(user_id: str, phone: str):
     unpaid = get_unpaid(user_id)
     if not unpaid:
-        send_whatsapp_message(phone, "✅ No pending balances — all payments collected!")
+        send_whatsapp_message(phone, "✅ No pending balances — all payments collected!\n\nReply *earnings* · *help*", show_help=False)
         return
     total_pending = sum(float(r["balance"]) for r in unpaid)
     message = "💰 *Pending balances:*\n\n"

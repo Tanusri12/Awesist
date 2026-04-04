@@ -30,9 +30,7 @@ def mark_message_read(message_id: str):
         print(f"MARK READ ERROR: {e}")
 
 
-def send_whatsapp_message(phone_number: str, message: str, show_help: bool = True) -> bool:
-    if show_help:
-        message = f"{message}\n\n_Reply *how* for examples  ·  *help* for all commands_"
+def send_whatsapp_message(phone_number: str, message: str, show_help: bool = False) -> bool:
 
     url = f"https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages"
 
