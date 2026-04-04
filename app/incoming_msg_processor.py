@@ -556,7 +556,7 @@ def _send_help(phone: str, topic: str = ""):
         send_whatsapp_message(
             phone,
             "📖 *Commands*\n\n"
-            "📦 *new order* — just type: Anjali cake 14 Apr 6pm\n"
+            "📦 To save a new booking, just type: Anjali cake 14 Apr 6pm\n"
             "📋 *reminders* — see upcoming orders\n"
             "💰 *unpaid* — who still owes you\n"
             "📊 *earnings* — this month's income\n"
