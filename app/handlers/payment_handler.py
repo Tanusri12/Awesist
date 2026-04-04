@@ -168,7 +168,7 @@ def handle_track_payment(user_id: str, phone: str, text: str):
             f"💰 Total: Rs.{total:.0f}\n"
             f"✅ Paid: Rs.{advance:.0f}\n"
             f"⏳ Balance due: *Rs.{balance:.0f}*\n\n"
-            f"⚠️ _No order or reminder created._\n\n"
+            f"⚠️ No order or reminder created.\n\n"
             "When balance is collected:\n"
             "Send *unpaid* → then *paid 1* (use the number shown)"
         )
@@ -176,7 +176,7 @@ def handle_track_payment(user_id: str, phone: str, text: str):
         msg = (
             f"✅ *Payment tracked — {customer}*\n\n"
             f"💰 Rs.{total:.0f} — Fully paid ✅\n\n"
-            f"⚠️ _No order or reminder created._\n\n"
+            f"⚠️ No order or reminder created.\n\n"
             "Reply *earnings* to see this month's collections."
         )
 
@@ -231,7 +231,7 @@ def handle_earnings(user_id: str, phone: str, text: str):
             msg += "\n"
         if len(data["customers"]) > 5:
             rest = len(data["customers"]) - 5
-            msg += f"  _+ {rest} more customer{'s' if rest > 1 else ''}_\n"
+            msg += f"  + {rest} more customer{'s' if rest > 1 else ''}\n"
 
     # Gentle nudge to mark anything still pending
     msg += "\nReply *unpaid* to see pending balances."

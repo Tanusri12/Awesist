@@ -124,7 +124,7 @@ def run_morning_summary():
                 pass
 
             # ── Footer ─────────────────────────────────────────────────────
-            lines.append("\n_reminders  ·  unpaid  ·  help_")
+            lines.append("\nreminders  ·  unpaid  ·  help")
 
             send_whatsapp_message(user_id, "\n".join(lines), show_help=False)
             mark_summary_sent(user_id)

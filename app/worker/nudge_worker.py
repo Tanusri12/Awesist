@@ -110,7 +110,7 @@ def _nudge_day3(user: dict, reminder_count: int) -> str:
             f"Hey *{name}*! 👋\n\n"
             "You're 3 days into your free trial but haven't added any orders yet.\n\n"
             "It takes just one message to get started:\n\n"
-            "_Priya cake 13th April 5pm total 1200 advance 300_\n\n"
+            "Priya cake 13th April 5pm total 1200 advance 300\n\n"
             "Try it now — I'll remind you automatically and track the payment. 💪\n\n"
             "Type *how* to see more examples."
         )
@@ -119,7 +119,7 @@ def _nudge_day3(user: dict, reminder_count: int) -> str:
             f"Hey *{name}*! 🌟\n\n"
             f"Great start — you've already saved *{reminder_count} order(s)*!\n\n"
             "💡 *Pro tip:* Add a customer's number to auto-notify them when their order is ready:\n\n"
-            "_Priya cake 13th April 5pm 9876543210_\n\n"
+            "Priya cake 13th April 5pm 9876543210\n\n"
             "Priya gets a WhatsApp reminder automatically. No extra effort from you! 📱"
         )
 
@@ -141,7 +141,7 @@ def _nudge_day7(user: dict, stats: dict) -> str:
 
     if not total:
         lines.append("You haven't added any orders yet — your trial is running out!")
-        lines.append("\nJust type an order naturally:\n_Priya cake 13th April 5pm_")
+        lines.append("\nJust type an order naturally:\nPriya cake 13th April 5pm")
     else:
         lines.append("\nKeep adding orders and I'll make sure you never miss a reminder. ⏰")
         lines.append("\nType *earnings* to see your income this month 📊")

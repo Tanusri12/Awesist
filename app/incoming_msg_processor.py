@@ -355,7 +355,7 @@ def _send_expired_message(phone: str, user: dict, was_paid: bool = False):
         roi_line = ""
         if stats["collected_overall"] > 2990:
             pct = round((299 / stats["collected_overall"]) * 100, 1)
-            roi_line = f"\n_Awesist costs just {pct}% of what you've already collected._"
+            roi_line = f"\nAwesist costs just {pct}% of what you've already collected."
 
         stats_block = (
             "\n" + "\n".join(stats_lines) + roi_line + "\n\n"
@@ -466,18 +466,18 @@ def _send_help(phone: str, topic: str = ""):
             phone,
             "📦 *Saving orders — 3 ways:*\n\n"
             "*1️⃣ Basic — just task and date:*\n"
-            "_Anjali cake 14 Apr 6pm_\n"
+            "Anjali cake 14 Apr 6pm\n"
             "→ I'll remind you 2 hrs before automatically\n\n"
             "*2️⃣ With payment:*\n"
-            "_Anjali cake 14 Apr 6pm total 1200 advance 300_\n"
+            "Anjali cake 14 Apr 6pm total 1200 advance 300\n"
             "→ Tracks what's paid and what's due\n\n"
             "*3️⃣ With customer notification:*\n"
-            "_Anjali cake 14 Apr 6pm 9876543210_\n"
+            "Anjali cake 14 Apr 6pm 9876543210\n"
             "→ Anjali gets a WhatsApp when ready\n\n"
             "*📅 Dates you can use:*\n"
             "today · tomorrow · next friday\n"
             "14 Apr · 14th April · in 3 days\n\n"
-            "_I'll always confirm before saving._",
+            "I'll always confirm before saving.",
             show_help=False
         )
 
@@ -486,18 +486,18 @@ def _send_help(phone: str, topic: str = ""):
             phone,
             "💰 *Payments — 3 ways:*\n\n"
             "*1️⃣ Include when saving:*\n"
-            "_Anjali cake 14 Apr 6pm total 1200 advance 300_\n"
+            "Anjali cake 14 Apr 6pm total 1200 advance 300\n"
             "→ Saves order + tracks payment together\n\n"
             "*2️⃣ Add to an existing order:*\n"
             "Send *edit* → then reply:\n"
-            "_payment 1200 advance 300_\n"
-            "_payment done_  (fully paid)\n\n"
+            "payment 1200 advance 300\n"
+            "payment done  (fully paid)\n\n"
             "*3️⃣ Standalone (no reminder created):*\n"
-            "_track Anjali total 1200 advance 300_\n"
+            "track Anjali total 1200 advance 300\n"
             "→ Payment only, no order saved\n\n"
             "*Mark as collected:*\n"
             "Send *unpaid* → then *paid 2*\n"
-            "_(use the number shown in the list)_",
+            "(use the number shown in the list)",
             show_help=False
         )
 
@@ -506,15 +506,15 @@ def _send_help(phone: str, topic: str = ""):
             phone,
             "🗑️ *Deleting orders — 3 ways:*\n\n"
             "*1️⃣ Delete one:*\n"
-            "_delete 2_\n"
+            "delete 2\n"
             "→ Removes order #2\n\n"
             "*2️⃣ Delete several at once:*\n"
-            "_delete 1 3 5_\n"
+            "delete 1 3 5\n"
             "→ Removes orders 1, 3 and 5 in one go\n\n"
             "*3️⃣ Clear everything:*\n"
-            "_delete all_\n"
+            "delete all\n"
             "→ Removes all orders\n\n"
-            "_Send *reminders* first to see the numbers._",
+            "Send *reminders* first to see the numbers.",
             show_help=False
         )
 
@@ -523,14 +523,14 @@ def _send_help(phone: str, topic: str = ""):
             phone,
             "📞 *Notify your customer — 2 ways:*\n\n"
             "*1️⃣ Add number when saving:*\n"
-            "_Priya cake 14 Apr 6pm 9876543210_\n"
+            "Priya cake 14 Apr 6pm 9876543210\n"
             "→ Priya gets a WhatsApp when her order is ready\n\n"
             "*2️⃣ Add to an existing order:*\n"
             "Send *edit* → then reply:\n"
-            "_phone 9876543210_\n"
+            "phone 9876543210\n"
             "→ We'll ask when to send the message\n\n"
-            "_No extra steps needed from you._\n"
-            "_The message goes out automatically at the time you set._",
+            "No extra steps needed from you.\n"
+            "The message goes out automatically at the time you set.",
             show_help=False
         )
 
@@ -607,7 +607,7 @@ def route_intent(user_id: str, phone: str, text: str):
         else:
             send_whatsapp_message(
                 phone,
-                "⚠️ No saved orders to edit yet.\n\nSave one first, e.g. _Anjali cake 14 Apr 6pm_"
+                "⚠️ No saved orders to edit yet.\n\nSave one first, e.g. Anjali cake 14 Apr 6pm"
             )
         return
 
@@ -625,7 +625,7 @@ def route_intent(user_id: str, phone: str, text: str):
             phone,
             "🤔 I didn't quite get that.\n\n"
             "Try something like:\n"
-            "• _Send cake to Anjali on 13th April at 6pm_\n"
+            "• Send cake to Anjali on 13th April at 6pm\n"
             "• *reminders* → see your list\n"
             "• *unpaid* → see pending balances\n"
             "• *earnings* → this month's income\n"

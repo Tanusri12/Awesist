@@ -41,8 +41,8 @@ def handle_create_reminder(user_id: str, phone: str, text: str):
             phone,
             "💡 Just tell me the order details directly — no need for commands!\n\n"
             "*Examples:*\n"
-            "_Anjali cake 13th April 5pm_\n"
-            "_Meena blouse stitching 20th April at 11am total 800_\n\n"
+            "Anjali cake 13th April 5pm\n"
+            "Meena blouse stitching 20th April at 11am total 800\n\n"
             "Type *how* to see more examples.",
             show_help=False
         )
@@ -54,8 +54,8 @@ def handle_create_reminder(user_id: str, phone: str, text: str):
             phone,
             "I didn't quite get that 😊\n\n"
             "To save an order, send something like:\n"
-            "_Anjali cake 14 Apr 6pm_\n"
-            "_Meena blouse 20 Apr 11am total 800_\n\n"
+            "Anjali cake 14 Apr 6pm\n"
+            "Meena blouse 20 Apr 11am total 800\n\n"
             "Type *how* for more examples · *help* for all commands",
             show_help=False
         )
@@ -81,7 +81,7 @@ def handle_create_reminder(user_id: str, phone: str, text: str):
         send_whatsapp_message(
             phone,
             "I couldn't understand that. Please describe your order clearly, e.g.\n\n"
-            "_Anjali cake 13 Apr 5pm_",
+            "Anjali cake 13 Apr 5pm",
             show_help=False
         )
         return
@@ -162,15 +162,15 @@ def _apply_reminder_offset(due_dt: datetime, offset: str):
 def _reminder_label(offset: str) -> str:
     """Return a human-readable label for a reminder offset."""
     if not offset:
-        return "_(2 hrs before)_"
+        return "(2 hrs before)"
     if offset == "day_before":
-        return "_(day before)_"
+        return "(day before)"
     if offset == "morning":
-        return "_(morning of due date)_"
+        return "(morning of due date)"
     if offset == "2hr":
-        return "_(2 hrs before)_"
+        return "(2 hrs before)"
     if offset == "1hr":
-        return "_(1 hr before)_"
+        return "(1 hr before)"
     # Absolute datetime or specific time — no extra label needed
     return ""
 
@@ -291,8 +291,8 @@ def _fast_path_with_date(
             phone,
             "⚠️ Due date is too soon — please set it at least 30 minutes in the future.\n\n"
             "Try a proper date like:\n"
-            "_Anjali cake tomorrow at 5pm_\n"
-            "_Meena appointment 20th April at 11am_",
+            "Anjali cake tomorrow at 5pm\n"
+            "Meena appointment 20th April at 11am",
             show_help=False
         )
         return
@@ -419,7 +419,7 @@ def _fast_path_with_date(
             f"⏰ I'll remind you on *{reminder_display}*{label_str}\n\n"
             f"You'll get a WhatsApp message when it's time — no app needed.\n\n"
             f"💰 Want to also track payment?\n"
-            f"_total 1200 advance 300_  ·  or *skip*",
+            f"total 1200 advance 300  ·  or *skip*",
             show_help=False
         )
     else:
@@ -430,7 +430,7 @@ def _fast_path_with_date(
             f"📅 Due: {due_display}\n"
             f"⏰ Reminder: {reminder_display}{label_str}\n\n"
             f"💰 Want to track what's paid and what's still due?\n"
-            f"_total 1200 advance 300_  ·  or *skip*"
+            f"total 1200 advance 300  ·  or *skip*"
         )
 
 
@@ -487,12 +487,12 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
             f"💰 Payment: {pay_val}\n"
             f"📞 Customer: {phone_val}\n\n"
             f"Reply with what you want to change:\n"
-            f"_task Meena blouse_\n"
-            f"_date 15 Apr 6pm_\n"
-            f"_payment 1200 advance 300_\n"
-            f"_payment 1200_ (full amount due)\n"
-            f"_payment done_ (fully paid)\n"
-            f"_phone 9876543210_",
+            f"task Meena blouse\n"
+            f"date 15 Apr 6pm\n"
+            f"payment 1200 advance 300\n"
+            f"payment 1200 (full amount due)\n"
+            f"payment done (fully paid)\n"
+            f"phone 9876543210",
             show_help=False
         )
         return True
@@ -507,7 +507,7 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
         send_whatsapp_message(
             phone,
             "📲 Want to notify your client when the order is ready?\n"
-            "Reply their number e.g. _98XXXXXX10_\nor *skip*",
+            "Reply their number e.g. 98XXXXXX10\nor *skip*",
             show_help=False
         )
         return True
@@ -549,7 +549,7 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
             f"📝 {task}\n"
             f"{payment_line}\n\n"
             f"📲 Want to notify your client when the order is ready?\n"
-            f"Reply their number e.g. _98XXXXXX10_\nor *skip*",
+            f"Reply their number e.g. 98XXXXXX10\nor *skip*",
             show_help=False
         )
         return True
@@ -624,7 +624,7 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
             total = float(existing["total"]) if existing and existing.get("total") else 0
             if total == 0:
                 send_whatsapp_message(phone,
-                    "⚠️ No total amount set. Use:\n_payment 1200 done_", show_help=False)
+                    "⚠️ No total amount set. Use:\npayment 1200 done", show_help=False)
                 return True
             from repositories.payment_repository import create_payment
             create_payment(user_id=user_id, reminder_id=reminder_id,
@@ -633,14 +633,14 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
             clear_state(phone)
             send_whatsapp_message(phone,
                 f"✅ *Payment updated!*\n\n📝 {task}\n💰 Rs.{int(total)} — Fully paid ✅\n\n"
-                f"_edit · reminders_", show_help=False)
+                f"edit · reminders", show_help=False)
             return True
 
         total_m   = _re.search(r'\b(?:payment|total|paid)?\s*(\d+)\b', t)
         advance_m = _re.search(r'\b(?:advance|paid)\s+(\d+)\b', t)
         if not total_m:
             send_whatsapp_message(phone,
-                "⚠️ Include the amount:\n_payment 1200_\n_payment 1200 advance 300_\n_payment done_",
+                "⚠️ Include the amount:\npayment 1200\npayment 1200 advance 300\npayment done",
                 show_help=False)
             return True
 
@@ -658,7 +658,7 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
                     if balance > 0 else "💰 Fully paid ✅")
         clear_state(phone)
         send_whatsapp_message(phone,
-            f"✅ *Payment updated!*\n\n📝 {task}\n{pay_line}\n\n_edit · reminders_",
+            f"✅ *Payment updated!*\n\n📝 {task}\n{pay_line}\n\nedit · reminders",
             show_help=False)
         return True
 
@@ -678,10 +678,10 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
                                 _default_reminder_time(due_at) if due_at else None)
             clear_state(phone)
             send_whatsapp_message(phone,
-                f"✅ Customer phone updated: {digits[-10:]}\n\n_edit · reminders_",
+                f"✅ Customer phone updated: {digits[-10:]}\n\nedit · reminders",
                 show_help=False)
         else:
-            send_whatsapp_message(phone, "⚠️ Send a valid 10-digit number:\n_phone 9876543210_",
+            send_whatsapp_message(phone, "⚠️ Send a valid 10-digit number:\nphone 9876543210",
                                   show_help=False)
         return True
 
@@ -698,7 +698,7 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
             update_reminder(reminder_id, user_id, new_task, rem_dt)
             clear_state(phone)
             send_whatsapp_message(phone,
-                f"✅ Task updated: {new_task}\n\n_edit · reminders_", show_help=False)
+                f"✅ Task updated: {new_task}\n\nedit · reminders", show_help=False)
         return True
 
     # ── date <new date/time> ──────────────────────────────────────────────
@@ -709,7 +709,7 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
         due_time  = extracted.get("time") or "09:00"
         if not due_date:
             send_whatsapp_message(phone,
-                "⚠️ Couldn't read that date.\nTry: _date 15 Apr 6pm_", show_help=False)
+                "⚠️ Couldn't read that date.\nTry: date 15 Apr 6pm", show_help=False)
             return True
         current = get_reminder_by_id(reminder_id, user_id)
         task    = current.get("task", "") if current else ""
@@ -720,7 +720,7 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
         send_whatsapp_message(phone,
             f"✅ *Date updated!*\n\n📝 {task}\n"
             f"📅 Due: {due_dt.strftime('%-d %b %I:%M %p')}\n"
-            f"🔔 Remind: {rem_dt.strftime('%-d %b %I:%M %p')}\n\n_edit · reminders_",
+            f"🔔 Remind: {rem_dt.strftime('%-d %b %I:%M %p')}\n\nedit · reminders",
             show_help=False)
         return True
 
@@ -735,11 +735,11 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
             phone,
             "⚠️ I didn't understand that.\n\n"
             "Update one field at a time:\n"
-            "_task Meena blouse_\n"
-            "_date 15 Apr 6pm_\n"
-            "_payment 1200 advance 300_\n"
-            "_payment done_\n"
-            "_phone 9876543210_",
+            "task Meena blouse\n"
+            "date 15 Apr 6pm\n"
+            "payment 1200 advance 300\n"
+            "payment done\n"
+            "phone 9876543210",
             show_help=False
         )
         return True
@@ -764,7 +764,7 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
         f"📝 {task}\n"
         f"📅 Due: {due_dt.strftime('%-d %b %I:%M %p')}\n"
         f"🔔 Remind: {reminder_dt.strftime('%-d %b %I:%M %p')}\n\n"
-        f"_edit · reminders_",
+        f"edit · reminders",
         show_help=False
     )
     return True
@@ -947,7 +947,7 @@ def _handle_awaiting_time(user_id: str, phone: str, text: str, state: dict) -> b
         send_whatsapp_message(
             phone,
             "⚠️ Couldn't understand that. Try:\n"
-            "_tomorrow at 6pm_  or  _13th April 3pm_"
+            "tomorrow at 6pm  or  13th April 3pm"
         )
         return True
 
@@ -1273,10 +1273,10 @@ def _customer_msg_preview(vendor_phone: str, task: str, due_dt, balance: float =
     time_line  = f"\n⏰ *Today at {time_str}*" if time_str else ""
     bal_line   = f"\n💰 *Balance due: Rs.{balance:.0f}*" if balance > 0 else ""
     return (
-        f"_Hi! 👋_\n"
-        f"_Heads up! Your order from *{business_name}* is scheduled for *today*."
-        f"{time_line}{bal_line}_\n"
-        f"_Have a great day! 😊_"
+        f"Hi! 👋\n"
+        f"Heads up! Your order from *{business_name}* is scheduled for *today*."
+        f"{time_line}{bal_line}\n"
+        f"Have a great day! 😊"
     )
 
 
@@ -1328,7 +1328,7 @@ def _ask_notify_customer(phone: str, state: dict, preset_option=None):
             due_dt = _build_datetime(due_date_s, due_time_s)
 
     notify_at, notify_label = _calc_notify_at(due_dt)
-    label_str    = f" {reminder_label}" if reminder_label else " _(2 hrs before)_"
+    label_str    = f" {reminder_label}" if reminder_label else " (2 hrs before)"
     notify_line  = f"\n📲 {display_num} notified: {notify_label}" if notify_at else ""
 
     if total is not None:
@@ -1417,7 +1417,7 @@ def _handle_awaiting_notify_customer(user_id: str, phone: str, text: str, state:
         send_whatsapp_message(
             phone,
             f"📵 Skipped — *{display_num_nudge}* won't be notified.\n\n"
-            f"💡 Next time try a time like _4pm_ — I'll WhatsApp them automatically "
+            f"💡 Next time try a time like 4pm — I'll WhatsApp them automatically "
             f"so they know the order is ready and carry the exact amount.",
             show_help=False
         )
@@ -1435,7 +1435,7 @@ def _handle_awaiting_notify_customer(user_id: str, phone: str, text: str, state:
                 send_whatsapp_message(
                     phone,
                     "⚠️ I couldn't read that time.\n\n"
-                    "Type a date & time e.g. _12 Apr 3pm_  ·  or *no* to skip",
+                    "Type a date & time e.g. 12 Apr 3pm  ·  or *no* to skip",
                     show_help=False
                 )
                 return True
@@ -1521,7 +1521,7 @@ def _handle_awaiting_payment_notify(user_id: str, phone: str, text: str, state: 
     if not customer_phone:
         send_whatsapp_message(
             phone,
-            "⚠️ Please send a valid 10-digit number e.g. _98XXXXXX10_\nor *skip* to continue.",
+            "⚠️ Please send a valid 10-digit number e.g. 98XXXXXX10\nor *skip* to continue.",
             show_help=False
         )
         return True
@@ -1607,7 +1607,7 @@ def _handle_awaiting_payment_notify(user_id: str, phone: str, text: str, state: 
         preview = _customer_msg_preview(phone, task_display, due_dt, bal_for_preview)
         lines.append(f"\n📨 *Message {display_num} will receive:*\n{preview}")
 
-    lines.append(f"\n_edit · reminders · unpaid_")
+    lines.append(f"\nedit · reminders · unpaid")
     clear_state(phone)
     send_whatsapp_message(phone, "\n".join(lines), show_help=False)
     return True
@@ -1668,7 +1668,7 @@ def _handle_awaiting_payment_notify_time(user_id: str, phone: str, text: str, st
     if not notify_at:
         send_whatsapp_message(
             phone,
-            "⚠️ Couldn't read that time. Try _1pm_, _10:30am_, or _2 Apr 6pm_\nor *no* to skip.",
+            "⚠️ Couldn't read that time. Try 1pm, 10:30am, or 2 Apr 6pm\nor *no* to skip.",
             show_help=False
         )
         return True

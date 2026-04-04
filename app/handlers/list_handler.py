@@ -26,7 +26,7 @@ def handle_list_reminders(user_id: str, phone: str):
         send_whatsapp_message(
             phone,
             "📭 No upcoming orders.\n\n"
-            "Save one: _Anjali cake 14 Apr 6pm_",
+            "Save one: Anjali cake 14 Apr 6pm",
             show_help=False
         )
         return
@@ -105,7 +105,7 @@ def handle_list_reminders(user_id: str, phone: str):
         lines.append(f"💰 *Rs.{int(total_unpaid)} total pending*")
         lines.append("")
 
-    lines.append("_delete 1  ·  unpaid  ·  earnings_")
+    lines.append("delete 1  ·  unpaid  ·  earnings")
 
     send_whatsapp_message(phone, "\n".join(lines), show_help=False)
 
