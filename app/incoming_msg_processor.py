@@ -534,6 +534,23 @@ def _send_help(phone: str, topic: str = ""):
             show_help=False
         )
 
+    elif topic in ("earnings", "earning", "income", "revenue", "sales"):
+        send_whatsapp_message(
+            phone,
+            "📊 *Earnings — 2 ways to view:*\n\n"
+            "*1️⃣ This month:*\n"
+            "Send *earnings*\n"
+            "→ Total collected, number of orders, top customers\n\n"
+            "*2️⃣ Last month:*\n"
+            "Send *earnings last month*\n"
+            "→ Same summary for the previous month\n\n"
+            "*How earnings are counted:*\n"
+            "Only payments you've marked as collected appear here.\n\n"
+            "To mark as collected:\n"
+            "Send *unpaid* → then *paid 2* (use the number shown)",
+            show_help=False
+        )
+
     else:
         # Default — short overview
         send_whatsapp_message(
@@ -547,7 +564,7 @@ def _send_help(phone: str, topic: str = ""):
             "🗑️ *delete 2* — remove an order\n\n"
             "For details, send:\n"
             "*help orders*  ·  *help payments*\n"
-            "*help delete*  ·  *help notify*",
+            "*help earnings*  ·  *help delete*  ·  *help notify*",
             show_help=False
         )
 
