@@ -212,6 +212,26 @@ def get_total_pending(user_id: str) -> float:
         release_connection(conn)
 
 
+def get_pending_summary(user_id: str) -> dict:
+    """Count and sum of all pending payments — for earnings footer."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT COUNT(*), COALESCE(SUM(total - advance), 0)
+            FROM payments
+            WHERE user_id = %s AND status = 'pending' AND total > advance
+            """,
+            (user_id,)
+        )
+        row = cursor.fetchone()
+        return {"count": int(row[0]), "amount": float(row[1])} if row else {"count": 0, "amount": 0.0}
+    finally:
+        cursor.close()
+        release_connection(conn)
+
+
 def get_trial_stats(user_id: str):
     """
     Summary of what the vendor has done across their entire usage.

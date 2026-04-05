@@ -71,26 +71,32 @@ def process_reminders():
     for r in reminders:
         try:
             task_title = r["task"].title() if r["task"] else "Order"
-            message = f"⏰ *{task_title}*"
 
             # Due time
+            due_str = ""
             if r.get("due_at"):
                 due = r["due_at"]
                 if isinstance(due, str):
                     due = datetime.fromisoformat(due)
-                message += f"\n📅 Due: {due.strftime('%d %b, %I:%M %p')}"
+                t = due.strftime("%-I %p") if due.minute == 0 else due.strftime("%-I:%M %p")
+                due_str = f"\n🗓 Today at {t}"
 
             # Payment info
             payment = get_payment_for_reminder(r["id"])
-            if payment:
-                if payment.get("customer_phone"):
-                    message += f"\n📲 {str(payment['customer_phone'])[-10:]}"
-                if float(payment.get("balance") or 0) > 0:
-                    message += f"\n💰 Rs.{float(payment['balance']):.0f} balance pending"
-                    message += f"\n\nReply *unpaid* → mark as collected"
+            pay_line = ""
+            if payment and float(payment.get("balance") or 0) > 0:
+                pay_line = f"\n💰 Rs.{float(payment['balance']):.0f} balance due"
+
+            message = (
+                f"🔔 *Reminder — delivery soon!*\n\n"
+                f"📝 {task_title}"
+                f"{due_str}"
+                f"{pay_line}\n\n"
+                f"done 1 → mark delivered\n"
+                f"unpaid → see all pending"
+            )
 
             send_whatsapp_message(r["phone"], message, show_help=False)
-
             mark_reminder_sent(r["id"])
             log(f"Sent → {r['phone'][:6]}*** → {r['task'][:40]}")
         except Exception as e:

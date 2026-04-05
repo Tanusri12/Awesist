@@ -1,6 +1,6 @@
 from datetime import datetime
 from repositories.user_repository import get_summary_users, mark_summary_sent
-from repositories.reminder_repository import get_today_reminders, get_user_reminders
+from repositories.reminder_repository import get_today_reminders_with_payment, get_user_reminders
 from whatsapp import send_whatsapp_message
 from worker.nudge_worker import run_nudge_worker
 
@@ -33,17 +33,17 @@ def _fmt_date(dt) -> str:
 
 def _pay_line(r: dict) -> str:
     total   = r.get("total")
-    advance = r.get("advance")
     balance = r.get("balance")
+    advance = r.get("advance")
     if not total or float(total) <= 0:
         return ""
     bal = float(balance or 0)
     adv = float(advance or 0)
     if bal <= 0:
-        return "      💚 Fully paid"
+        return "   ✅ Fully paid"
     if adv > 0:
-        return f"      💰 Rs.{int(adv)} paid  ·  *Rs.{int(bal)} due*"
-    return f"      💰 *Rs.{int(float(total))} due*"
+        return f"   💰 Rs.{int(adv)} paid  ·  *Rs.{int(bal)} pending*"
+    return f"   💰 *Rs.{int(float(total))} pending*"
 
 
 def run_morning_summary():
@@ -56,7 +56,7 @@ def run_morning_summary():
         first_name = (user.get("business_name") or "there").split()[0]
 
         try:
-            today     = get_today_reminders(user_id)
+            today     = get_today_reminders_with_payment(user_id)
             all_r     = get_user_reminders(user_id)
             today_ids = {r["id"] for r in today}
             upcoming  = [r for r in all_r if r["id"] not in today_ids]
@@ -73,14 +73,13 @@ def run_morning_summary():
             if today:
                 lines.append(f"*📅 Today — {now_str}  ({len(today)} order{'s' if len(today)>1 else ''})*")
                 for i, r in enumerate(today, 1):
-                    task    = r.get("task") or "—"
-                    due_dt  = _to_dt(r.get("due_at"))
-                    rem_dt  = _to_dt(r.get("reminder_time"))
-                    pay     = _pay_line(r)
+                    task   = r.get("task") or "—"
+                    due_dt = _to_dt(r.get("due_at"))
+                    rem_dt = _to_dt(r.get("reminder_time"))
+                    pay    = _pay_line(r)
 
                     lines.append(f"\n{i}. *{task.capitalize()}*")
-                    lines.append(f"      📅 Due: {_fmt_time(due_dt)}")
-                    lines.append(f"      🔔 Remind: {_fmt_time(rem_dt)}")
+                    lines.append(f"   🗓 Due: {_fmt_time(due_dt)}  🔔 Remind: {_fmt_time(rem_dt)}")
                     if pay:
                         lines.append(pay)
             else:
@@ -96,8 +95,8 @@ def run_morning_summary():
                     rem_dt = _to_dt(r.get("reminder_time"))
                     pay    = _pay_line(r)
 
-                    lines.append(f"\n• *{task.capitalize()}*  —  {_fmt_date(due_dt)}")
-                    lines.append(f"      📅 Due: {_fmt_time(due_dt)}  ·  🔔 Remind: {_fmt_time(rem_dt)}")
+                    lines.append(f"\n· *{task.capitalize()}*  —  {_fmt_date(due_dt)}")
+                    lines.append(f"   🗓 Due: {_fmt_time(due_dt)}  🔔 Remind: {_fmt_time(rem_dt)}")
                     if pay:
                         lines.append(pay)
 
@@ -108,9 +107,9 @@ def run_morning_summary():
                 if r.get("balance") and float(r["balance"]) > 0
             )
             if total_unpaid > 0:
-                lines.append(f"\n💸 *Rs.{int(total_unpaid)} pending* across all orders")
+                lines.append(f"\n💰 *Rs.{int(total_unpaid)} pending* across all orders")
 
-            # ── Nudge tip (no second message) ──────────────────────────────
+            # ── Nudge tip ──────────────────────────────────────────────────
             try:
                 nudge_text = run_nudge_worker(user_only=user)
                 if nudge_text:

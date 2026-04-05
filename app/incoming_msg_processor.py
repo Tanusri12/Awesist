@@ -201,6 +201,17 @@ def process_message(data: dict):
             if state.get("_expired"):
                 handle_expired_state(phone, text, state, user)
                 return
+            step = state.get("step")
+            # Delete confirmation
+            if step == "awaiting_delete_confirm":
+                from handlers.list_handler import handle_delete_confirm
+                if handle_delete_confirm(user["id"], phone, text, state):
+                    return
+            # Thank-you after payment
+            if step == "awaiting_thankyou":
+                from handlers.payment_handler import handle_thankyou_reply
+                if handle_thankyou_reply(user["id"], phone, text, state):
+                    return
             if handle_reminder_state(user["id"], phone, text, state):
                 return
 
@@ -561,7 +572,11 @@ def _send_help(phone: str, topic: str = ""):
             "💰 *unpaid* — who still owes you\n"
             "📊 *earnings* — this month's income\n"
             "✏️ *edit* — update last saved order\n"
-            "🗑️ *delete* — send *reminders* → then *delete 2* (use the number shown)\n\n"
+            "✅ *done 2* — mark order #2 as delivered\n"
+            "🔍 *find Anjali* — search a customer's orders\n"
+            "💸 *paid 2* — mark order #2 payment collected\n"
+            "📲 *remind 2* — send payment reminder to customer\n"
+            "🗑️ *delete* — send *reminders* → then *delete 2*\n\n"
             "For details, send:\n"
             "*help orders*  ·  *help payments*\n"
             "*help earnings*  ·  *help delete*  ·  *help notify*",
@@ -605,6 +620,24 @@ def route_intent(user_id: str, phone: str, text: str):
 
     if text_lower.startswith("remove "):
         handle_remove_payment(user_id, phone, text)
+        return
+
+    # Done — mark order delivered
+    if text_lower.startswith("done ") or text_lower == "done":
+        from handlers.list_handler import handle_done_reminder
+        handle_done_reminder(user_id, phone, text)
+        return
+
+    # Find — search orders by customer name
+    if text_lower.startswith("find "):
+        from handlers.list_handler import handle_find_orders
+        handle_find_orders(user_id, phone, text)
+        return
+
+    # Remind — send payment nudge to customer
+    if text_lower.startswith("remind ") or text_lower == "remind":
+        from handlers.payment_handler import handle_remind_customer
+        handle_remind_customer(user_id, phone, text)
         return
 
     if text_lower == "paid" or text_lower.startswith("paid "):

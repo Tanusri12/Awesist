@@ -247,3 +247,67 @@ def get_today_reminders(user_id: str) -> list:
     finally:
         cursor.close()
         release_connection(conn)
+
+
+def find_reminders_by_name(user_id: str, name: str) -> list:
+    """Search all reminders (pending + completed) where task contains name."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute(
+            """
+            SELECT r.id, r.task, r.due_at, r.reminder_time, r.status,
+                   p.total, p.advance, p.customer_phone,
+                   GREATEST(0, COALESCE(p.total, 0) - COALESCE(p.advance, 0)) AS balance
+            FROM reminders r
+            LEFT JOIN payments p ON p.reminder_id = r.id
+            WHERE r.user_id = %s AND LOWER(r.task) LIKE %s
+            ORDER BY COALESCE(r.due_at, r.reminder_time) DESC
+            LIMIT 10
+            """,
+            (user_id, f"%{name.lower()}%")
+        )
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        release_connection(conn)
+
+
+def mark_reminder_delivered(reminder_id: int, user_id: str):
+    """Mark a reminder as completed (delivered)."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE reminders SET status = 'completed', sent_at = NOW() WHERE id = %s AND user_id = %s",
+            (reminder_id, user_id)
+        )
+        conn.commit()
+    finally:
+        cursor.close()
+        release_connection(conn)
+
+
+def get_today_reminders_with_payment(user_id: str) -> list:
+    """Today's reminders with payment info joined."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute(
+            """
+            SELECT r.id, r.task, r.reminder_time, r.due_at,
+                   p.total, p.advance,
+                   GREATEST(0, COALESCE(p.total, 0) - COALESCE(p.advance, 0)) AS balance
+            FROM reminders r
+            LEFT JOIN payments p ON p.reminder_id = r.id
+            WHERE r.user_id = %s
+            AND r.status = 'pending'
+            AND DATE(COALESCE(r.due_at, r.reminder_time)) = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date
+            ORDER BY COALESCE(r.due_at, r.reminder_time)
+            """,
+            (user_id,)
+        )
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        release_connection(conn)

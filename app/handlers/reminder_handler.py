@@ -770,6 +770,25 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
                                   show_help=False)
         return True
 
+    # ── note <special instructions> ──────────────────────────────────────
+    if t.startswith("note "):
+        note_text = text[5:].strip()
+        current   = get_reminder_by_id(reminder_id, user_id)
+        if current and note_text:
+            # Append note to task with separator
+            base_task = (current.get("task") or "").split(" 📌 ")[0].strip()
+            new_task  = f"{base_task} 📌 {note_text}"
+            due_at    = current.get("due_at") or current.get("reminder_time")
+            if due_at and isinstance(due_at, str):
+                from datetime import datetime as _dt
+                due_at = _dt.fromisoformat(due_at)
+            update_reminder(reminder_id, user_id, new_task, None)
+            clear_state(phone)
+            send_whatsapp_message(phone,
+                f"✅ Note saved!\n\n📝 {base_task}\n📌 {note_text}\n\nedit · reminders",
+                show_help=False)
+        return True
+
     # ── task <new name> ───────────────────────────────────────────────────
     if t.startswith("task "):
         new_task = text[5:].strip()
