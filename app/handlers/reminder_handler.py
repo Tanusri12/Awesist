@@ -612,6 +612,83 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
     reminder_id = state.get("reminder_id")
     t = text.strip().lower()
 
+    # ── Template-style reply (user copied the edit prompt and filled fields) ─
+    # e.g. "Task: priya cake\n📅 Due: 5 Apr 9pm\n📞 Customer: 9591914432"
+    if _re.search(r'\btask\s*:', text, _re.I) and _re.search(r'(customer|phone|due|payment)\s*:', text, _re.I):
+        def _tfield(label: str):
+            m = _re.search(rf'{label}\s*:\s*(.+)', text, _re.I | _re.MULTILINE)
+            if not m:
+                return None
+            v = _re.sub(r'^[\s📅💰📞✏️]+', '', m.group(1)).strip()  # strip leading emoji
+            return None if v.lower() in ('not set', 'skip', '-', '', 'na', 'none') else v
+
+        current = get_reminder_by_id(reminder_id, user_id)
+        if not current:
+            clear_state(phone)
+            return True
+
+        task       = current.get("task", "")
+        due_at_cur = current.get("due_at") or current.get("reminder_time")
+        if due_at_cur and isinstance(due_at_cur, str):
+            due_at_cur = datetime.fromisoformat(due_at_cur)
+
+        changed_lines = []
+
+        # Task
+        new_task = _tfield('task')
+        if new_task and new_task.lower() != task.lower():
+            task = new_task
+            changed_lines.append(f"📝 {task}")
+
+        # Due date/time
+        due_raw = _tfield('due') or _tfield('date')
+        new_due_date, new_due_time = None, None
+        if due_raw:
+            extracted_dt = extract_reminder_details(due_raw, phone)
+            new_due_date = extracted_dt.get("date")
+            new_due_time = extracted_dt.get("time") or "09:00"
+            if new_due_date:
+                due_at_cur = _build_due_datetime(new_due_date, new_due_time)
+                changed_lines.append(f"📅 {due_at_cur.strftime('%-d %b %-I:%M %p')}")
+
+        # Reminder time — keep existing unless due date changed
+        rem_dt = _default_reminder_time(due_at_cur) if new_due_date else None
+
+        # Save reminder update
+        update_reminder(reminder_id, user_id, task, rem_dt,
+                        new_due_date or None, new_due_time or None)
+
+        # Customer phone
+        phone_raw = _tfield('customer') or _tfield('phone')
+        if phone_raw:
+            digits = _re.sub(r'\D', '', phone_raw)
+            if len(digits) >= 10:
+                customer_phone_e164 = '91' + digits[-10:]
+                display_num = digits[-10:]
+                # Auto 7AM notify
+                notify_at, notify_label = _calc_notify_at(due_at_cur)
+                from repositories.payment_repository import get_payment_for_reminder, update_payment_notify, create_payment
+                existing_pay = get_payment_for_reminder(reminder_id)
+                if existing_pay:
+                    update_payment_notify(existing_pay["id"], customer_phone_e164, notify_at)
+                else:
+                    create_payment(user_id=user_id, reminder_id=reminder_id,
+                                   customer=_extract_customer(task),
+                                   total=0, advance=0, customer_phone=customer_phone_e164,
+                                   notify_customer=True, customer_notify_at=notify_at)
+                changed_lines.append(f"📞 {display_num} — notified {notify_label}")
+
+        if not changed_lines:
+            send_whatsapp_message(phone, "Nothing changed — all fields were the same.\n\nedit · reminders", show_help=False)
+        else:
+            send_whatsapp_message(
+                phone,
+                "✅ *Updated!*\n\n" + "\n".join(changed_lines) + "\n\nedit · reminders",
+                show_help=False
+            )
+        clear_state(phone)
+        return True
+
     # ── payment done / payment 1200 / payment 1200 advance 300 ───────────
     if t.startswith("payment") or t.startswith("paid"):
         current = get_reminder_by_id(reminder_id, user_id)
@@ -666,19 +743,27 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
     if t.startswith("phone "):
         digits = _re.sub(r'\D', '', text)
         if len(digits) >= 10:
-            from repositories.reminder_repository import update_reminder
+            customer_phone_e164 = '91' + digits[-10:]
+            display_num = digits[-10:]
             current = get_reminder_by_id(reminder_id, user_id)
-            if current:
-                due_at = current.get("due_at") or current.get("reminder_time")
-                if due_at and isinstance(due_at, str):
-                    from datetime import datetime as _dt
-                    due_at = _dt.fromisoformat(due_at)
-                update_reminder(reminder_id, user_id,
-                                current.get("task", ""),
-                                _default_reminder_time(due_at) if due_at else None)
+            task = current.get("task", "") if current else ""
+            # Get due_at to compute notify time — keep existing reminder untouched
+            due_at = current.get("due_at") if current else None
+            if due_at and isinstance(due_at, str):
+                due_at = datetime.fromisoformat(due_at)
+            notify_at, notify_label = _calc_notify_at(due_at)
+            from repositories.payment_repository import get_payment_for_reminder, update_payment_notify, create_payment
+            existing_pay = get_payment_for_reminder(reminder_id)
+            if existing_pay:
+                update_payment_notify(existing_pay["id"], customer_phone_e164, notify_at)
+            else:
+                create_payment(user_id=user_id, reminder_id=reminder_id,
+                               customer=_extract_customer(task),
+                               total=0, advance=0, customer_phone=customer_phone_e164,
+                               notify_customer=True, customer_notify_at=notify_at)
             clear_state(phone)
             send_whatsapp_message(phone,
-                f"✅ Customer phone updated: {digits[-10:]}\n\nedit · reminders",
+                f"✅ *Updated!*\n\n📞 {display_num} added\n📲 Notified: {notify_label}\n\nedit · reminders",
                 show_help=False)
         else:
             send_whatsapp_message(phone, "⚠️ Send a valid 10-digit number:\nphone 9876543210",
