@@ -714,13 +714,45 @@ def parse_template_reply(text: str):
         except Exception:
             pass
 
-    phone_val = _field('customer phone') or _field('phone')
+    # "Reminder: 5 Apr 8:45pm" or "Reminder: 2hrs before" etc.
+    reminder_val = _field('reminder')
+    if reminder_val:
+        rv = reminder_val.strip().lower()
+        # Named offsets
+        if re.search(r'day.before|1\s*day\s*before', rv):
+            result['reminder_offset'] = 'day_before'
+        elif re.search(r'morning', rv):
+            result['reminder_offset'] = 'morning'
+        elif re.search(r'1\s*hr|1\s*hour', rv):
+            result['reminder_offset'] = '1hr'
+        elif re.search(r'2\s*hrs?|2\s*hours?', rv):
+            result['reminder_offset'] = '2hr'
+        else:
+            # Try to parse as a specific datetime (e.g. "5 Apr 8:45pm")
+            try:
+                from parser.extractors.datetime_extractor import extract_datetime
+                rdt = extract_datetime(reminder_val)
+                if rdt.get('date') and rdt.get('time'):
+                    result['reminder_offset'] = f"abs:{rdt['date']} {rdt['time']}"
+                elif rdt.get('time') and result.get('date'):
+                    # Time only — apply to due date
+                    result['reminder_offset'] = f"abs:{result['date']} {rdt['time']}"
+            except Exception:
+                pass
+
+    # "Customer Phone (to notify them):" — flexible match ignoring anything in parentheses
+    phone_raw = re.search(r'customer\s+phone[^:]*:\s*(.+)', text, re.I | re.MULTILINE)
+    phone_val = phone_raw.group(1).strip() if phone_raw else None
+    if not phone_val:
+        phone_val = _field('phone')
     if phone_val:
-        digits = re.sub(r'\D', '', phone_val)
-        if len(digits) == 10 and digits[0] in '6789':
-            result['customer_phone'] = '91' + digits
-        elif len(digits) == 12 and digits.startswith('91'):
-            result['customer_phone'] = digits
+        phone_val = re.sub(r'\[.*?\]', '', phone_val).strip()
+        if phone_val.lower() not in ('skip', 'na', 'nahi', 'no', '-', ''):
+            digits = re.sub(r'\D', '', phone_val)
+            if len(digits) == 10 and digits[0] in '6789':
+                result['customer_phone'] = '91' + digits
+            elif len(digits) == 12 and digits.startswith('91'):
+                result['customer_phone'] = digits
 
     total_val = _field('total')
     if total_val:
