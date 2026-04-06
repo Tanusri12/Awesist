@@ -423,8 +423,9 @@ def _fast_path_with_date(
             f"📅 Due: {due_display}\n"
             f"⏰ I'll remind you on *{reminder_display}*{label_str}\n\n"
             f"You'll get a WhatsApp message when it's time — no app needed.\n\n"
-            f"💰 Want to also track payment?\n"
-            f"total 1200 advance 300  ·  or *skip*",
+            f"💰 Want to track payment for this order?\n"
+            f"Type: total 1500 advance 500 (what they owe + what they paid)\n"
+            f"Or reply *skip*",
             show_help=False
         )
     else:
@@ -434,8 +435,9 @@ def _fast_path_with_date(
             f"📝 {task}\n"
             f"📅 Due: {due_display}\n"
             f"⏰ Reminder: {reminder_display}{label_str}\n\n"
-            f"💰 Want to track what's paid and what's still due?\n"
-            f"total 1200 advance 300  ·  or *skip*"
+            f"💰 Want to track payment for this order?\n"
+            f"Type: total 1500 advance 500 (what they owe + what they paid)\n"
+            f"Or reply *skip*"
         )
 
 
@@ -474,30 +476,29 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
             date_val = ""
 
         task_val  = (current.get("task") or "").strip()
-        phone_val = (current.get("customer_phone") or "")[-10:] if current.get("customer_phone") else "not set"
+        phone_val = (current.get("customer_phone") or "")[-10:] if current.get("customer_phone") else "No phone saved"
         total     = current.get("total")
         advance   = current.get("advance")
         if total and float(total) > 0:
             bal = float(total) - float(advance or 0)
             pay_val = f"Rs.{int(float(total))} total · Rs.{int(float(advance or 0))} paid · Rs.{int(bal)} due"
         else:
-            pay_val = "not set"
+            pay_val = "Not set"
 
         set_state(phone, {"step": "awaiting_edit", "reminder_id": reminder_id})
         send_whatsapp_message(
             phone,
             f"✏️ *Update your order:*\n\n"
-            f"📝 Task: {task_val}\n"
-            f"📅 Due: {date_val}\n"
-            f"💰 Payment: {pay_val}\n"
-            f"📞 Customer: {phone_val}\n\n"
-            f"Reply with what you want to change:\n"
-            f"task Meena blouse\n"
-            f"date 15 Apr 6pm\n"
-            f"payment 1200 advance 300\n"
-            f"payment 1200 (full amount due)\n"
-            f"payment done (fully paid)\n"
-            f"phone 9876543210",
+            f"📝 {task_val}\n"
+            f"📅 {date_val}\n"
+            f"💰 {pay_val}\n"
+            f"📞 {phone_val}\n\n"
+            f"Reply with what to change:\n"
+            f"*task* Meena blouse — change order name\n"
+            f"*date* 15 Apr 6pm — change date/time\n"
+            f"*payment* 1200 advance 300 — update payment (total + advance paid)\n"
+            f"*payment done* — mark as fully paid\n"
+            f"*phone* 9876543210 — add customer's number",
             show_help=False
         )
         return True
@@ -511,8 +512,10 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
         })
         send_whatsapp_message(
             phone,
-            "📲 Want to notify your client when the order is ready?\n"
-            "Reply their number e.g. 98XXXXXX10\nor *skip*",
+            "📲 Want to WhatsApp your customer when the order is ready?\n"
+            "Reply with their number (e.g. 9876543210)\n"
+            "They'll get a message automatically when it's done.\n"
+            "Or reply *skip*",
             show_help=False
         )
         return True
@@ -553,8 +556,10 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
             f"✅ *Payment saved!*\n\n"
             f"📝 {task}\n"
             f"{payment_line}\n\n"
-            f"📲 Want to notify your client when the order is ready?\n"
-            f"Reply their number e.g. 98XXXXXX10\nor *skip*",
+            f"📲 Want to WhatsApp your customer when the order is ready?\n"
+            f"Reply with their number (e.g. 9876543210)\n"
+            f"They'll get a message automatically when it's done.\n"
+            f"Or reply *skip*",
             show_help=False
         )
         return True
@@ -1017,7 +1022,7 @@ def _handle_awaiting_template(user_id: str, phone: str, text: str, state: dict) 
             _send_template(phone, task, customer_phone, total, advance)
             send_whatsapp_message(
                 phone,
-                "⚠️ Couldn't read the date. Fill in the *Date* field and send again."
+                "⚠️ I couldn't read the date. Try formats like: today, tomorrow, 14 Apr, next Sunday, in 3 days"
             )
             return True
 
@@ -1045,7 +1050,7 @@ def _handle_awaiting_template(user_id: str, phone: str, text: str, state: dict) 
         _send_template(phone, saved_task, customer_phone, total, advance)
         send_whatsapp_message(
             phone,
-            "⚠️ Couldn't read the date. Fill in the *Date* field and send again."
+            "⚠️ I couldn't read the date. Try formats like: today, tomorrow, 14 Apr, next Sunday, in 3 days"
         )
         return True
 

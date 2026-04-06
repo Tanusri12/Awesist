@@ -67,7 +67,7 @@ def run_morning_summary():
                 continue
 
             now_str = datetime.now().strftime("%-d %b")
-            lines   = [f"☀️ *Good morning, {first_name}!*\n"]
+            lines   = [f"☀️ *Good morning, {first_name}! Here's your day:*\n"]
 
             # ── Today ──────────────────────────────────────────────────────
             if today:

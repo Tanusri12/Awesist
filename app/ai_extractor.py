@@ -241,7 +241,18 @@ def extract_reminder_details(message_text: str, phone: str = "unknown") -> dict:
         _log_ai_call(phone, message_text)
         ai_result = _call_openai_once(safe_text, phone)
         if ai_result:
+            # Always prefer local payment extraction — it has phone-exclusion logic
+            # that the AI lacks (AI may confuse a 10-digit phone for a total amount).
+            # Only borrow date/time/task from the AI result.
+            _PAYMENT_KEYS = ("total", "advance", "customer_phone",
+                             "reminder_offset", "customer_notify_option")
             if not result.get("date"):
+                # Local missed date entirely — use AI result as base, then
+                # overlay any payment/phone values the local parser found.
+                for k in _PAYMENT_KEYS:
+                    local_val = result.get(k)
+                    if local_val is not None:
+                        ai_result[k] = local_val
                 return ai_result
             if ai_result.get("time"):
                 result["time"] = ai_result["time"]

@@ -42,10 +42,10 @@ def handle_list_reminders(user_id: str, phone: str):
 
     lines = ["📅 *Upcoming Orders*\n"]
 
+    from datetime import timedelta as _td
     for day in sorted(by_date.keys()):
         entries = by_date[day]
 
-        from datetime import timedelta as _td
         if day == today:
             day_label = f"*Today, {day.strftime('%-d %b')}*"
         elif day == today + _td(days=1):
@@ -70,33 +70,25 @@ def handle_list_reminders(user_id: str, phone: str):
                 if bal <= 0:
                     pay_str = "✅ Paid"
                 elif adv > 0:
-                    pay_str = f"💰 Rs.{int(adv)} pd · *Rs.{int(bal)} due*"
+                    pay_str = f"💰 Rs.{int(bal)} due"
                 else:
-                    pay_str = f"💰 *Rs.{int(float(total))} due*"
+                    pay_str = f"💰 Rs.{int(float(total))} due"
             else:
                 pay_str = ""
 
-            header = f"  {idx}. {task}"
+            # Build single line: idx. Task · 3 PM 🔔 1 PM · 💰 Rs.X due
+            row = f"{idx}. {task}"
             if time_str:
-                header += f"  ·  {time_str}"
-            lines.append(header)
+                row += f" · {time_str}"
             if remind_str:
-                lines.append(f"     🔔 Remind {remind_str}")
+                row += f" 🔔 {remind_str}"
             if pay_str:
-                lines.append(f"     {pay_str}")
+                row += f" · {pay_str}"
+            lines.append(row)
 
         lines.append("")
 
-    total_unpaid = sum(
-        float(r.get("balance") or 0)
-        for r in reminders
-        if r.get("balance") and float(r["balance"]) > 0
-    )
-    if total_unpaid > 0:
-        lines.append(f"💰 *Rs.{int(total_unpaid)} total pending*")
-        lines.append("")
-
-    lines.append("Reply *unpaid* · *earnings* · *help*")
+    lines.append("Reply *done 1* when delivered · *unpaid* to collect payments")
     send_whatsapp_message(phone, "\n".join(lines), show_help=False)
 
 
@@ -271,13 +263,13 @@ def handle_find_orders(user_id: str, phone: str, text: str):
     lines = [f"🔍 *Orders for {name.capitalize()}:*\n"]
 
     for i, r in enumerate(results, 1):
-        task    = r.get("task") or "—"
+        task    = (r.get("task") or "—").title()
         due_dt  = _to_dt(r.get("due_at"))
         balance = float(r.get("balance") or 0)
         total   = float(r.get("total") or 0)
         status  = r.get("status", "pending")
 
-        due_str = due_dt.strftime("%-d %b %-I %p") if due_dt else ""
+        due_str = due_dt.strftime("%-d %b, %-I %p") if due_dt else ""
         if due_dt and due_dt.date() < today and status == "pending":
             due_str += " ⚠️ Overdue"
 
@@ -285,21 +277,22 @@ def handle_find_orders(user_id: str, phone: str, text: str):
         total_pending += balance
 
         if balance <= 0 or status == "completed":
-            pay_str = "✅ Fully paid"
+            pay_str = "✅ Paid"
         else:
             pay_str = f"💰 Rs.{int(balance)} due"
 
         line = f"{i}. {task}"
         if due_str:
-            line += f"  —  {due_str}"
+            line += f" — {due_str}"
+        if pay_str:
+            line += f" {pay_str}"
         lines.append(line)
-        lines.append(f"   {pay_str}")
-        lines.append("")
 
-    summary = f"Total from {name.capitalize()}: *Rs.{int(total_from)}*"
+    lines.append("")
+    summary = f"Total from {name.capitalize()}: *Rs.{int(total_from):,}*"
     if total_pending > 0:
-        summary += f"  ·  *Rs.{int(total_pending)} still pending*"
+        summary += f"  ·  Rs.{int(total_pending):,} still pending"
     lines.append(summary)
-    lines.append("\npaid <number> · done <number> · help")
+    lines.append("paid 1 to mark collected · done 1 when delivered")
 
     send_whatsapp_message(phone, "\n".join(lines), show_help=False)

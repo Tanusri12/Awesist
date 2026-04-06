@@ -28,14 +28,18 @@ def handle_unpaid(user_id: str, phone: str):
                 overdue = True
             else:
                 due_str = f" · due {due.strftime('%d %b')}"
+        customer_name = r['customer'] or r['task']
         message += (
-            f"{i}. *{r['customer'] or r['task']}*\n"
-            f"   Total: Rs.{float(r['total']):.0f}  ·  Advance: Rs.{float(r['advance']):.0f}\n"
-            f"   *Balance: Rs.{float(r['balance']):.0f}*{due_str}\n\n"
+            f"{i}. *{customer_name}*\n"
+            f"   Total: Rs.{float(r['total']):.0f}  ·  Paid: Rs.{float(r['advance']):.0f}\n"
+            f"   *Balance: Rs.{float(r['balance']):.0f} due*{due_str}\n\n"
         )
-    message += f"Total pending: *Rs.{total_pending:.0f}*\n\n"
-    message += "*paid <number>* → mark collected  ·  *paid all* → clear all\n"
-    message += "*remind <number>* → nudge customer  ·  *remove <number>* → delete\n\n"
+    message += f"Total due: *Rs.{total_pending:.0f}*\n\n"
+    first_name = (unpaid[0]['customer'] or unpaid[0]['task'] or "customer").split()[0]
+    message += f"*paid 1* → mark as received\n"
+    message += f"*paid all* → mark all as received\n"
+    message += f"*remind 1* → send payment reminder to {first_name}\n"
+    message += f"*remove 1* → remove from this list\n\n"
     message += "Reply *earnings* · *help*"
     send_whatsapp_message(phone, message, show_help=False)
 
