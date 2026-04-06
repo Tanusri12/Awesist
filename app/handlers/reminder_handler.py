@@ -326,7 +326,12 @@ def _fast_path_with_date(
     reminder_id = _save_reminder_with_due(user_id, task, reminder_dt, due_date, due_time)
     if not reminder_id:
         clear_state(phone)
-        send_whatsapp_message(phone, "⚠️ This reminder already exists.")
+        send_whatsapp_message(
+            phone,
+            "⚠️ A reminder for that task and date already exists — not saved again.\n\n"
+            "Send *reminders* to see your list, or save a new order with a different date.",
+            show_help=False
+        )
         return
 
     reminder_display = reminder_dt.strftime('%d %b %Y %I:%M %p')
@@ -874,8 +879,40 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
     return True
 
 
+
+# Commands and prefixes that should always escape a pending-order state.
+# These are messages the user clearly intends as commands, not order content.
+_ESCAPE_COMMANDS = {
+    "help", "reminders", "list", "unpaid", "pending", "earnings", "income",
+    "how", "menu", "commands", "skip", "reset", "stop", "quit", "exit", "new",
+    "done", "paid", "find", "edit", "update", "change", "track", "remove",
+}
+_ESCAPE_PREFIXES = (
+    "help ", "paid ", "done ", "find ", "remind ", "delete ",
+    "track ", "remove ", "earnings ", "income ",
+)
+
+# Steps that haven't collected enough info yet and have no graceful "skip" —
+# these should bail immediately when the user sends a command-like message.
+_ESCAPABLE_STEPS = {"awaiting_template", "awaiting_time", "awaiting_task_confirm"}
+
+
 def handle_reminder_state(user_id: str, phone: str, text: str, state: dict) -> bool:
     step = state.get("step")
+
+    # ── Global escape hatch for early-flow steps ──────────────────────────
+    # If the user sends a real command while stuck in a template/time prompt,
+    # clear state and let route_intent handle it as a fresh message.
+    if step in _ESCAPABLE_STEPS:
+        t_lower = text.strip().lower()
+        if t_lower in _ESCAPE_COMMANDS or any(t_lower.startswith(p) for p in _ESCAPE_PREFIXES):
+            clear_state(phone)
+            send_whatsapp_message(
+                phone,
+                "👍 Previous order draft cleared.",
+                show_help=False
+            )
+            return False  # fall through to route_intent
 
     if step == "awaiting_confirm":
         return _handle_awaiting_confirm(user_id, phone, text, state)
@@ -1133,7 +1170,12 @@ def _handle_awaiting_reminder_time(user_id: str, phone: str, text: str, state: d
     reminder_id = _save_reminder_with_due(user_id, task, reminder_dt, due_date, due_time)
     if not reminder_id:
         clear_state(phone)
-        send_whatsapp_message(phone, "⚠️ This reminder already exists.")
+        send_whatsapp_message(
+            phone,
+            "⚠️ A reminder for that task and date already exists — not saved again.\n\n"
+            "Send *reminders* to see your list, or save a new order with a different date.",
+            show_help=False
+        )
         return True
 
     reminder_display = reminder_dt.strftime('%d %b %Y %I:%M %p')
