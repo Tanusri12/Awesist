@@ -88,7 +88,7 @@ def handle_list_reminders(user_id: str, phone: str):
 
         lines.append("")
 
-    lines.append("Reply *done 1* when delivered · *unpaid* to collect payments")
+    lines.append("Reply *done 1* when delivered · *unpaid* to collect payments · *help*")
     send_whatsapp_message(phone, "\n".join(lines), show_help=False)
 
 
