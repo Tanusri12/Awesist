@@ -24,10 +24,33 @@ _INDIC_SCRIPT_RE = __import__("re").compile(
     r"[\u0900-\u0DFF\u0E00-\u0E7F\u1C00-\u1CFF]"
 )
 
+# Common Hindi words written in Roman script that never appear in English orders.
+# Two or more of these in one message = Hinglish → block early, no AI call wasted.
+_HINGLISH_MARKERS = {
+    "kal", "aaj", "parso", "baje", "subah", "shaam", "raat", "dopahar",
+    "dena", "karna", "chahiye", "lena", "bhejo", "banana", "banao",
+    "hai", "hain", "tha", "thi", "the", "hoga", "hogi",
+    "ko", "ka", "ki", "ke", "se", "mein", "par", "tak",
+    "nahi", "nhi", "mat", "karo", "karo",
+    "mujhe", "mera", "meri", "uska", "uski", "apna", "apni",
+    "wala", "wali", "wale", "bahut", "thoda", "abhi", "zaroor",
+    "accha", "theek", "bilkul", "yaar", "bhai",
+}
+
+def _is_hinglish(text: str) -> bool:
+    """Return True if the message contains 2+ Hindi words written in Roman script."""
+    words = __import__("re").findall(r'\b[a-zA-Z]+\b', text.lower())
+    hits = sum(1 for w in words if w in _HINGLISH_MARKERS)
+    return hits >= 2
+
 
 def _is_english(text: str) -> bool:
-    """Return False if the message contains significant Indic or non-Latin script."""
-    return not _INDIC_SCRIPT_RE.search(text)
+    """Return False if the message contains Indic script or is clearly Hinglish."""
+    if _INDIC_SCRIPT_RE.search(text):
+        return False
+    if _is_hinglish(text):
+        return False
+    return True
 
 GREETINGS = ["hi", "hello", "hey", "hii", "helo", "good morning",
              "good evening", "good afternoon", "namaste", "namaskar"]
