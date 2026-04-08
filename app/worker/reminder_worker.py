@@ -50,13 +50,28 @@ def _ist_now():
     return datetime.now(IST)
 
 
+_summary_sent_date = None   # tracks the last date summary was attempted
+
 def maybe_send_morning_summary():
-    if _ist_now().hour != MORNING_SUMMARY_HOUR:
+    global _summary_sent_date
+    now = _ist_now()
+    today = now.date()
+
+    # Already ran today — skip
+    if _summary_sent_date == today:
         return
+
+    # Only fire within the send window (8 AM – 10 AM IST)
+    # Wide window handles server restarts/worker crashes during 8 AM
+    if not (MORNING_SUMMARY_HOUR <= now.hour < MORNING_SUMMARY_HOUR + 2):
+        return
+
+    _summary_sent_date = today
     try:
         run_morning_summary()
     except Exception as e:
         log(f"Morning summary error: {e}")
+        _summary_sent_date = None  # allow retry on next tick if it crashed
 
 
 def process_reminders():

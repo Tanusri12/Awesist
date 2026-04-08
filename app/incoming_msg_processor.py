@@ -478,13 +478,8 @@ def handle_expired_state(phone: str, text: str, state: dict, user: dict):
         )
         return
 
-    # New message — clear old state and process fresh
+    # New message — silently clear old state and process fresh
     clear_state(phone)
-    send_whatsapp_message(
-        phone,
-        "I noticed you had an unfinished reminder from earlier — cleared it. 👍",
-        show_help=False
-    )
     route_intent(user["id"], phone, text)
 
 
