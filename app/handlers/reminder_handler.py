@@ -465,18 +465,26 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
             send_whatsapp_message(phone, "⚠️ Could not find the reminder to edit.")
             return True
 
-        # Format current due date/time for the template
+        # Format current due date/time and reminder time
+        from datetime import datetime as _dt
         due_at = current.get("due_at")
         if due_at:
             if isinstance(due_at, str):
-                from datetime import datetime as _dt
                 due_at = _dt.fromisoformat(due_at)
-            date_val = due_at.strftime("%-d %b %-I:%M %p").lower()  # e.g. "13 apr 6:00 pm"
+            date_val = due_at.strftime("%-d %b %-I:%M %p")
         else:
             date_val = ""
 
+        rem_at = current.get("reminder_time")
+        if rem_at:
+            if isinstance(rem_at, str):
+                rem_at = _dt.fromisoformat(rem_at)
+            remind_val = rem_at.strftime("%-d %b %-I:%M %p")
+        else:
+            remind_val = ""
+
         task_val  = (current.get("task") or "").strip()
-        phone_val = (current.get("customer_phone") or "")[-10:] if current.get("customer_phone") else "No phone saved"
+        phone_val = (current.get("customer_phone") or "")[-10:] if current.get("customer_phone") else ""
         total     = current.get("total")
         advance   = current.get("advance")
         if total and float(total) > 0:
@@ -486,21 +494,22 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
             pay_val = "Not set"
 
         set_state(phone, {"step": "awaiting_edit", "reminder_id": reminder_id})
-        send_whatsapp_message(
-            phone,
-            f"✏️ *Update your order:*\n\n"
-            f"📝 {task_val}\n"
-            f"📅 {date_val}\n"
-            f"💰 {pay_val}\n"
-            f"📞 {phone_val}\n\n"
-            f"Reply with what to change:\n"
-            f"*task* Meena blouse — change order name\n"
-            f"*date* 15 Apr 6pm — change date/time\n"
-            f"*payment* 1200 advance 300 — update payment (total + advance paid)\n"
-            f"*payment done* — mark as fully paid\n"
-            f"*phone* 9876543210 — add customer's number",
-            show_help=False
+        lines = [
+            "✏️ *Copy, edit one line, and send back:*\n",
+            f"Task: {task_val}",
+            f"Date: {date_val}",
+        ]
+        if remind_val:
+            lines.append(f"Reminder: {remind_val}")
+        if phone_val:
+            lines.append(f"Phone: {phone_val}")
+        lines.append(f"Payment: {pay_val}")
+        lines.append(
+            f"\nTo update payment:\n"
+            f"*payment* 1200 advance 300\n"
+            f"*payment done* — mark as fully paid"
         )
+        send_whatsapp_message(phone, "\n".join(lines), show_help=False)
         return True
 
     # ── Skip payment → still ask about client notification ────────────
@@ -623,14 +632,29 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
     t = text.strip().lower()
 
     # ── Template-style reply (user copied the edit prompt and filled fields) ─
-    # e.g. "Task: priya cake\n📅 Due: 5 Apr 9pm\n📞 Customer: 9591914432"
-    if _re.search(r'\btask\s*:', text, _re.I) and _re.search(r'(customer|phone|due|payment)\s*:', text, _re.I):
+    # Supports two formats:
+    #   Text labels:  "Task: priya cake\n📅 Due: 5 Apr\n📞 Customer: 9591914432"
+    #   Emoji labels: "priya cake\n📅 20 apr 6pm\n💰 Rs.850...\n📞 9591914432"
+    _is_text_template  = _re.search(r'\btask\s*:', text, _re.I) and _re.search(r'(customer|phone|due|payment)\s*:', text, _re.I)
+    _is_emoji_template = _re.search(r'📅', text) and (_re.search(r'📞', text) or _re.search(r'💰', text))
+    if _is_text_template or _is_emoji_template:
         def _tfield(label: str):
             m = _re.search(rf'{label}\s*:\s*(.+)', text, _re.I | _re.MULTILINE)
             if not m:
                 return None
-            v = _re.sub(r'^[\s📅💰📞✏️]+', '', m.group(1)).strip()  # strip leading emoji
+            v = _re.sub(r'^[\s📅💰📞✏️]+', '', m.group(1)).strip()
             return None if v.lower() in ('not set', 'skip', '-', '', 'na', 'none') else v
+
+        def _emoji_field(emoji: str):
+            """Extract value from an emoji-labelled line e.g. '📅 20 apr 6pm'."""
+            m = _re.search(rf'{_re.escape(emoji)}\s*(.+)', text, _re.MULTILINE)
+            if not m:
+                return None
+            v = m.group(1).strip()
+            # Strip payment detail suffixes like "Rs.850 total · Rs.850 paid · Rs.0 due"
+            v = _re.sub(r'Rs\.\d+.*', '', v, flags=_re.I).strip()
+            v = _re.sub(r'·.*', '', v).strip()
+            return v if v else None
 
         current = get_reminder_by_id(reminder_id, user_id)
         if not current:
@@ -644,14 +668,21 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
 
         changed_lines = []
 
-        # Task
+        # Task — first line of message if no "Task:" label (emoji format)
         new_task = _tfield('task')
+        if not new_task and _is_emoji_template:
+            # First non-empty line that doesn't start with an emoji is the task
+            for line in text.splitlines():
+                line = line.strip()
+                if line and not _re.match(r'^[📅💰📞✏️]', line):
+                    new_task = line
+                    break
         if new_task and new_task.lower() != task.lower():
             task = new_task
             changed_lines.append(f"📝 {task}")
 
-        # Due date/time
-        due_raw = _tfield('due') or _tfield('date')
+        # Due date/time — text label or 📅 emoji line
+        due_raw = _tfield('due') or _tfield('date') or _emoji_field('📅')
         new_due_date, new_due_time = None, None
         if due_raw:
             extracted_dt = extract_reminder_details(due_raw, phone)
@@ -668,8 +699,8 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
         update_reminder(reminder_id, user_id, task, rem_dt,
                         new_due_date or None, new_due_time or None)
 
-        # Customer phone
-        phone_raw = _tfield('customer') or _tfield('phone')
+        # Customer phone — text label or 📞 emoji line
+        phone_raw = _tfield('customer') or _tfield('phone') or _emoji_field('📞')
         if phone_raw:
             digits = _re.sub(r'\D', '', phone_raw)
             if len(digits) >= 10:
