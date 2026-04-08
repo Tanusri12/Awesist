@@ -613,7 +613,7 @@ def route_intent(user_id: str, phone: str, text: str):
     text_lower = text.lower().strip()
 
     # Help & examples — "help", "help payments", "help orders" etc.
-    if text_lower in ("help", "menu", "commands", "how", "examples") or text_lower.startswith("help "):
+    if text_lower in ("help", "menu", "commands") or text_lower.startswith("help "):
         topic = text_lower[5:].strip() if text_lower.startswith("help ") else ""
         _send_help(phone, topic)
         return
@@ -703,5 +703,5 @@ def route_intent(user_id: str, phone: str, text: str):
             "• *unpaid* → see pending balances\n"
             "• *earnings* → this month's income\n"
             "• *delete 2* → remove a reminder\n\n"
-            "Type *how* to see message examples  ·  *help* for all commands."
+            "Type *help* for all commands."
         )
