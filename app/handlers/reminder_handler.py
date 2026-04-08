@@ -221,14 +221,24 @@ def _show_confirm_preview(
     else:
         reminder_dt = _default_reminder_time(due_dt)
 
-    reminder_display = reminder_dt.strftime('%d %b %Y %I:%M %p') if reminder_dt else "—"
+    reminder_display = reminder_dt.strftime('%-d %b %-I:%M %p') if reminder_dt else "—"
     reminder_label   = _reminder_label(reminder_offset)
-    label_str        = f" {reminder_label}" if reminder_label else ""
+
+    # Detect fallback: if default was requested but reminder is < 10 min before due,
+    # 2-hr slot was already past — show a clear warning instead of wrong label.
+    fallback_warn = ""
+    if not reminder_offset and reminder_dt and due_dt:
+        gap_mins = (due_dt - reminder_dt).total_seconds() / 60
+        if gap_mins < 10:
+            fallback_warn = "\n⚠️ 2 hrs before has already passed — reminding just before delivery."
+            reminder_label = ""
+
+    label_str = f" {reminder_label}" if reminder_label else ""
 
     lines = ["📋 *Got it! Is this right?*\n"]
     lines.append(f"📝 {task}")
     lines.append(f"📅 {due_display}")
-    lines.append(f"⏰ Reminder: {reminder_display}{label_str}")
+    lines.append(f"⏰ Reminder: {reminder_display}{label_str}{fallback_warn}")
 
     if total is not None:
         adv = float(advance or 0)
