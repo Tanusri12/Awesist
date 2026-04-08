@@ -483,7 +483,10 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
         else:
             remind_val = ""
 
+        # Strip any junk emoji suffixes that may have been saved in the task
+        import re as _re2
         task_val  = (current.get("task") or "").strip()
+        task_val  = _re2.sub(r'[\s]*[📅💰📞✏️📝🔔].*$', '', task_val).strip()
         phone_val = (current.get("customer_phone") or "")[-10:] if current.get("customer_phone") else ""
         total     = current.get("total")
         advance   = current.get("advance")
@@ -692,12 +695,46 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
                 due_at_cur = _build_due_datetime(new_due_date, new_due_time)
                 changed_lines.append(f"📅 {due_at_cur.strftime('%-d %b %-I:%M %p')}")
 
-        # Reminder time — keep existing unless due date changed
-        rem_dt = _default_reminder_time(due_at_cur) if new_due_date else None
+        # Reminder time — explicit Reminder: field takes priority, else recompute if due changed
+        rem_dt = None
+        remind_raw = _tfield('reminder')
+        if remind_raw:
+            extracted_rem = extract_reminder_details(remind_raw, phone)
+            rem_date = extracted_rem.get("date")
+            rem_time = extracted_rem.get("time")
+            if rem_date and rem_time:
+                rem_dt = _build_due_datetime(rem_date, rem_time)
+                changed_lines.append(f"🔔 Reminder: {rem_dt.strftime('%-d %b %-I:%M %p')}")
+        if rem_dt is None and new_due_date:
+            rem_dt = _default_reminder_time(due_at_cur)
 
         # Save reminder update
         update_reminder(reminder_id, user_id, task, rem_dt,
                         new_due_date or None, new_due_time or None)
+
+        # Payment: field — parse total and advance from template reply
+        pay_raw = _tfield('payment')
+        if pay_raw and pay_raw.lower() not in ('not set', 'skip', ''):
+            from ai_extractor import _extract_payment_fields
+            from repositories.payment_repository import get_payment_for_reminder, create_payment
+            pay_fields = _extract_payment_fields(pay_raw)
+            new_total   = pay_fields.get("total")
+            new_advance = pay_fields.get("advance")
+            if new_total is not None:
+                new_advance = min(float(new_advance or 0), float(new_total))
+                balance     = float(new_total) - new_advance
+                existing_pay = get_payment_for_reminder(reminder_id)
+                if existing_pay:
+                    from repositories.payment_repository import update_payment
+                    update_payment(existing_pay["id"], float(new_total), new_advance)
+                else:
+                    create_payment(user_id=user_id, reminder_id=reminder_id,
+                                   customer=_extract_customer(task),
+                                   total=float(new_total), advance=new_advance,
+                                   customer_phone=None, notify_customer=False)
+                pay_line = (f"💰 Rs.{int(new_total)} total · Rs.{int(new_advance)} paid · Rs.{int(balance)} due"
+                            if balance > 0 else f"💰 Rs.{int(new_total)} — Fully paid ✅")
+                changed_lines.append(pay_line)
 
         # Customer phone — text label or 📞 emoji line
         phone_raw = _tfield('customer') or _tfield('phone') or _emoji_field('📞')
@@ -706,7 +743,6 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
             if len(digits) >= 10:
                 customer_phone_e164 = '91' + digits[-10:]
                 display_num = digits[-10:]
-                # Auto 7AM notify
                 notify_at, notify_label = _calc_notify_at(due_at_cur)
                 from repositories.payment_repository import get_payment_for_reminder, update_payment_notify, create_payment
                 existing_pay = get_payment_for_reminder(reminder_id)
@@ -719,12 +755,22 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
                                    notify_customer=True, customer_notify_at=notify_at)
                 changed_lines.append(f"📞 {display_num} — notified {notify_label}")
 
+        # Always show due + reminder time in confirmation
+        if due_at_cur:
+            due_line = f"📅 {due_at_cur.strftime('%-d %b %-I:%M %p')}"
+            if due_line not in changed_lines:
+                changed_lines.append(due_line)
+        if rem_dt:
+            rem_line = f"🔔 Remind: {rem_dt.strftime('%-d %b %-I:%M %p')}"
+            if rem_line not in changed_lines:
+                changed_lines.append(rem_line)
+
         if not changed_lines:
-            send_whatsapp_message(phone, "Nothing changed — all fields were the same.\n\nedit · reminders", show_help=False)
+            send_whatsapp_message(phone, "Nothing changed — all fields were the same.\n\nReply *edit* · *reminders*", show_help=False)
         else:
             send_whatsapp_message(
                 phone,
-                "✅ *Updated!*\n\n" + "\n".join(changed_lines) + "\n\nedit · reminders",
+                "✅ *Updated!*\n\n" + "\n".join(changed_lines) + "\n\nReply *edit* · *reminders*",
                 show_help=False
             )
         clear_state(phone)
@@ -751,7 +797,7 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
             clear_state(phone)
             send_whatsapp_message(phone,
                 f"✅ *Payment updated!*\n\n📝 {task}\n💰 Rs.{int(total)} — Fully paid ✅\n\n"
-                f"edit · reminders", show_help=False)
+                f"Reply *edit* · *reminders*", show_help=False)
             return True
 
         total_m   = _re.search(r'\b(?:payment|total|paid)?\s*(\d+)\b', t)
@@ -776,7 +822,7 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
                     if balance > 0 else "💰 Fully paid ✅")
         clear_state(phone)
         send_whatsapp_message(phone,
-            f"✅ *Payment updated!*\n\n📝 {task}\n{pay_line}\n\nedit · reminders",
+            f"✅ *Payment updated!*\n\n📝 {task}\n{pay_line}\n\nReply *edit* · *reminders*",
             show_help=False)
         return True
 
@@ -804,7 +850,7 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
                                notify_customer=True, customer_notify_at=notify_at)
             clear_state(phone)
             send_whatsapp_message(phone,
-                f"✅ *Updated!*\n\n📞 {display_num} added\n📲 Notified: {notify_label}\n\nedit · reminders",
+                f"✅ *Updated!*\n\n📞 {display_num} added\n📲 Notified: {notify_label}\n\nReply *edit* · *reminders*",
                 show_help=False)
         else:
             send_whatsapp_message(phone, "⚠️ Send a valid 10-digit number:\nphone 9876543210",
@@ -826,7 +872,7 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
             update_reminder(reminder_id, user_id, new_task, None)
             clear_state(phone)
             send_whatsapp_message(phone,
-                f"✅ Note saved!\n\n📝 {base_task}\n📌 {note_text}\n\nedit · reminders",
+                f"✅ Note saved!\n\n📝 {base_task}\n📌 {note_text}\n\nReply *edit* · *reminders*",
                 show_help=False)
         return True
 
@@ -843,7 +889,7 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
             update_reminder(reminder_id, user_id, new_task, rem_dt)
             clear_state(phone)
             send_whatsapp_message(phone,
-                f"✅ Task updated: {new_task}\n\nedit · reminders", show_help=False)
+                f"✅ Task updated: {new_task}\n\nReply *edit* · *reminders*", show_help=False)
         return True
 
     # ── date <new date/time> ──────────────────────────────────────────────
@@ -865,7 +911,7 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
         send_whatsapp_message(phone,
             f"✅ *Date updated!*\n\n📝 {task}\n"
             f"📅 Due: {due_dt.strftime('%-d %b %I:%M %p')}\n"
-            f"🔔 Remind: {rem_dt.strftime('%-d %b %I:%M %p')}\n\nedit · reminders",
+            f"🔔 Remind: {rem_dt.strftime('%-d %b %I:%M %p')}\n\nReply *edit* · *reminders*",
             show_help=False)
         return True
 
@@ -909,7 +955,7 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
         f"📝 {task}\n"
         f"📅 Due: {due_dt.strftime('%-d %b %I:%M %p')}\n"
         f"🔔 Remind: {reminder_dt.strftime('%-d %b %I:%M %p')}\n\n"
-        f"edit · reminders",
+        f"Reply *edit* · *reminders*",
         show_help=False
     )
     return True
@@ -1794,7 +1840,7 @@ def _handle_awaiting_payment_notify(user_id: str, phone: str, text: str, state: 
         preview = _customer_msg_preview(phone, task_display, due_dt, bal_for_preview)
         lines.append(f"\n📨 *Message {display_num} will receive:*\n{preview}")
 
-    lines.append(f"\nedit · reminders · unpaid")
+    lines.append(f"\nReply *edit* · *reminders* · unpaid")
     clear_state(phone)
     send_whatsapp_message(phone, "\n".join(lines), show_help=False)
     return True

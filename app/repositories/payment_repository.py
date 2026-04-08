@@ -57,6 +57,24 @@ def create_payment(user_id: str, reminder_id: int, customer: str, total: float, 
         release_connection(conn)
 
 
+def update_payment(payment_id: int, total: float, advance: float):
+    """Update total and advance on an existing payment record."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE payments SET total = %s, advance = %s WHERE id = %s",
+            (total, advance, payment_id)
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("ERROR updating payment:", e)
+    finally:
+        cursor.close()
+        release_connection(conn)
+
+
 def update_payment_notify(payment_id: int, customer_phone: str, customer_notify_at):
     """Set customer phone and notification time on an existing payment."""
     conn = get_connection()
