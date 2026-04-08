@@ -472,7 +472,10 @@ def _extract_payment_fields(text: str) -> dict:
     result = {}
 
     # --- customer phone (Indian mobile: 10 digits starting 6-9, or +91 prefix) ---
-    phone_match = re.search(r'(?<!\d)(?:\+91|91)?([6-9]\d{9})(?!\d)', text)
+    # Also handle leading 0 (e.g. 09876543210) by normalising first
+    import unicodedata as _ud
+    text = _ud.normalize("NFKC", text)
+    phone_match = re.search(r'(?<!\d)(?:\+91|91|0)?([6-9]\d{9})(?!\d)', text)
     if phone_match:
         digits = phone_match.group(1)
         result["customer_phone"] = "91" + digits

@@ -897,9 +897,14 @@ _ESCAPE_PREFIXES = (
     "track ", "remove ", "earnings ", "income ",
 )
 
-# Steps that haven't collected enough info yet and have no graceful "skip" —
-# these should bail immediately when the user sends a command-like message.
-_ESCAPABLE_STEPS = {"awaiting_template", "awaiting_time", "awaiting_task_confirm"}
+# Steps that should bail immediately when the user sends a command-like message.
+# Covers all steps — edit/help/reminders etc. always escape any pending flow.
+_ESCAPABLE_STEPS = {
+    "awaiting_template", "awaiting_time", "awaiting_task_confirm",
+    "awaiting_reminder_time", "awaiting_payment", "awaiting_advance",
+    "awaiting_notify_customer", "awaiting_payment_notify",
+    "awaiting_payment_notify_time",
+}
 
 
 def handle_reminder_state(user_id: str, phone: str, text: str, state: dict) -> bool:
@@ -1930,12 +1935,17 @@ def _parse_amount(text: str):
 
 def _parse_phone(text: str):
     """Extract and normalize an Indian mobile number to WhatsApp format (91XXXXXXXXXX)."""
-    import re
+    import re, unicodedata
+    # Normalize unicode (handles non-breaking spaces, WhatsApp formatting chars, etc.)
+    text = unicodedata.normalize("NFKC", text)
     digits = re.sub(r'\D', '', text)
     if len(digits) == 10 and digits[0] in "6789":
         return "91" + digits
     if len(digits) == 12 and digits.startswith("91") and digits[2] in "6789":
         return digits
+    # Handle 11-digit with leading 0 (e.g. 09123456780)
+    if len(digits) == 11 and digits[0] == "0" and digits[1] in "6789":
+        return "91" + digits[1:]
     return None
 
 
