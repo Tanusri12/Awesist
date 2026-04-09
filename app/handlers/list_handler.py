@@ -215,7 +215,7 @@ def handle_done_reminder(user_id: str, phone: str, text: str):
     mark_reminder_delivered(reminder_id, user_id)
 
     if balance > 0:
-        payment = get_payment_for_reminder(reminder_id)
+        payment        = get_payment_for_reminder(reminder_id)
         customer_phone = payment.get("customer_phone") if payment else None
         pay_line = f"\n💰 *Rs.{int(balance)} balance still due*"
         footer = f"\n\npaid {numbers[0]} → mark as collected"
