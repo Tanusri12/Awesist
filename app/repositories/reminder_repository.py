@@ -131,11 +131,12 @@ def fetch_and_lock_due_reminders(limit: int = 20):
 
 
 def mark_reminder_sent(reminder_id: int):
+    """Reminder WhatsApp fired to vendor — status: notified."""
     conn = get_connection()
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE reminders SET status = 'completed', sent_at = NOW() WHERE id = %s",
+            "UPDATE reminders SET status = 'notified', sent_at = NOW() WHERE id = %s",
             (reminder_id,)
         )
         conn.commit()
@@ -244,11 +245,16 @@ def _build_due_at(due_date, due_time):
 
 
 def delete_reminder(reminder_id: int, user_id: str):
+    """Soft-delete — vendor cancelled the booking. Status: cancelled."""
     conn = get_connection()
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "DELETE FROM reminders WHERE id = %s AND user_id = %s",
+            """
+            UPDATE reminders
+            SET status = 'cancelled', cancelled_at = NOW()
+            WHERE id = %s AND user_id = %s AND status NOT IN ('cancelled', 'delivered')
+            """,
             (reminder_id, user_id)
         )
         conn.commit()
@@ -279,7 +285,7 @@ def get_today_reminders(user_id: str) -> list:
 
 
 def find_reminders_by_name(user_id: str, name: str) -> list:
-    """Search all reminders (pending + completed) where task contains name."""
+    """Search bookings (all statuses except cancelled) where task contains name."""
     conn = get_connection()
     try:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -290,7 +296,9 @@ def find_reminders_by_name(user_id: str, name: str) -> list:
                    GREATEST(0, COALESCE(p.total, 0) - COALESCE(p.advance, 0)) AS balance
             FROM reminders r
             LEFT JOIN payments p ON p.reminder_id = r.id
-            WHERE r.user_id = %s AND LOWER(r.task) LIKE %s
+            WHERE r.user_id = %s
+              AND LOWER(r.task) LIKE %s
+              AND r.status != 'cancelled'
             ORDER BY COALESCE(r.due_at, r.reminder_time) DESC
             LIMIT 10
             """,
@@ -303,12 +311,12 @@ def find_reminders_by_name(user_id: str, name: str) -> list:
 
 
 def mark_reminder_delivered(reminder_id: int, user_id: str):
-    """Mark a reminder as completed (delivered)."""
+    """Vendor marked order as done — status: delivered."""
     conn = get_connection()
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE reminders SET status = 'completed', sent_at = NOW() WHERE id = %s AND user_id = %s",
+            "UPDATE reminders SET status = 'delivered', sent_at = NOW() WHERE id = %s AND user_id = %s",
             (reminder_id, user_id)
         )
         conn.commit()

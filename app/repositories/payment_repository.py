@@ -443,7 +443,7 @@ def get_customer_notification_count(user_id: str) -> int:
             FROM reminders r
             JOIN payments p ON p.reminder_id = r.id
             WHERE r.user_id = %s
-              AND r.status = 'sent'
+              AND r.status = 'notified'
               AND p.customer_phone IS NOT NULL
               AND p.notify_customer = TRUE
             """,

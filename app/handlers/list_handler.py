@@ -275,7 +275,11 @@ def handle_find_orders(user_id: str, phone: str, text: str):
         total_from += total
         total_pending += balance
 
-        if balance <= 0 or status == "completed":
+        if status == "delivered":
+            pay_str = "✅ Delivered"
+        elif status == "notified":
+            pay_str = "🔔 Notified"
+        elif balance <= 0:
             pay_str = "✅ Paid"
         else:
             pay_str = f"💰 Rs.{int(balance)} due"
