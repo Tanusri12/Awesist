@@ -525,7 +525,8 @@ def _send_help(phone: str, topic: str = ""):
             "• *done 2* — mark booking 2 as delivered\n\n"
             "*Delete a booking:*\n"
             "• *delete 2* — delete booking 2\n"
-            "• *delete 1 3 5* — delete multiple at once",
+            "• *delete 1 3 5* — delete multiple at once\n\n"
+            "Reply *help* for all commands",
             show_help=False
         )
 
