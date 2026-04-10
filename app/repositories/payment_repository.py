@@ -129,17 +129,26 @@ def get_unpaid(user_id: str) -> list:
 
 
 def delete_payment_entry(payment_id: int, user_id: str) -> bool:
-    """Permanently delete a payment entry — used to remove duplicates/mistakes."""
+    """Soft-delete a payment entry — sets status='removed' and stamps removed_at.
+    Excluded automatically from all unpaid/earnings/notification queries."""
     conn = get_connection()
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "DELETE FROM payments WHERE id = %s AND user_id = %s",
+            """
+            UPDATE payments
+            SET status = 'removed', removed_at = NOW()
+            WHERE id = %s AND user_id = %s AND status != 'removed'
+            """,
             (payment_id, user_id)
         )
-        deleted = cursor.rowcount > 0
+        removed = cursor.rowcount > 0
         conn.commit()
-        return deleted
+        return removed
+    except Exception as e:
+        conn.rollback()
+        print("ERROR removing payment:", e)
+        return False
     finally:
         cursor.close()
         release_connection(conn)
