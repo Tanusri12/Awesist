@@ -511,14 +511,15 @@ def _send_help(phone: str, topic: str = ""):
         send_whatsapp_message(
             phone,
             "📦 *Bookings*\n\n"
-            "*Create a booking — just type naturally:*\n"
+            "*Create a booking:*\n"
             "Anjali cake 14 Apr 6pm\n"
             "Anjali cake 14 Apr 6pm total 1200 advance 300\n\n"
             "*View bookings:*\n"
             "• *bookings* — see all upcoming orders\n"
             "• *find Anjali* — search by customer name\n\n"
             "*Update a booking:*\n"
-            "• *edit* — update the last saved booking\n\n"
+            "• *edit* — update the last saved booking\n"
+            "• *edit 15* — update booking ref 15\n\n"
             "*Mark as done:*\n"
             "• *done 2* — mark booking 2 as delivered\n\n"
             "*Delete a booking:*\n"
@@ -552,7 +553,7 @@ def _send_help(phone: str, topic: str = ""):
             "Anjali cake 14 Apr 6pm 9876543210\n"
             "→ Anjali gets a WhatsApp when her order is ready\n\n"
             "*Add phone to an existing booking:*\n"
-            "• *edit* → then reply: phone 9876543210\n\n"
+            "• *edit 15* → then reply: phone 9876543210\n\n"
             "*Send a payment nudge:*\n"
             "• *remind 2* — sends balance reminder to customer\n\n"
             "*Check notification status:*\n"
@@ -666,23 +667,43 @@ def route_intent(user_id: str, phone: str, text: str):
             handle_mark_paid(user_id, phone, text)
         return
 
-    # ── Edit last booking (no active state) ─────────────────────────────
-    if text_lower in ("edit", "update", "change"):
-        from repositories.reminder_repository import get_most_recent_reminder
-        recent = get_most_recent_reminder(user_id)
-        if recent:
-            synthetic_state = {
-                "step": "just_saved",
-                "reminder_id": recent["id"],
-                "booking_ref": recent.get("booking_ref"),
-                "task": recent.get("task", "")
-            }
-            handle_reminder_state(user_id, phone, text_lower, synthetic_state)
+    # ── Edit booking — "edit" (last) or "edit 15" (by booking ref) ─────────
+    _edit_match = re.match(r'^(edit|update|change)\s+(\d+)$', text_lower)
+    if _edit_match or text_lower in ("edit", "update", "change"):
+        from repositories.reminder_repository import get_most_recent_reminder, get_reminder_by_booking_ref
+        if _edit_match:
+            ref_num = int(_edit_match.group(2))
+            reminder = get_reminder_by_booking_ref(user_id, ref_num)
+            if not reminder:
+                send_whatsapp_message(
+                    phone,
+                    f"⚠️ Booking {ref_num} not found.\n\nSend *bookings* to see your list.",
+                    show_help=False
+                )
+                return
+            if reminder.get("status") in ("delivered", "cancelled"):
+                status_word = "delivered" if reminder.get("status") == "delivered" else "cancelled"
+                send_whatsapp_message(
+                    phone,
+                    f"⚠️ Booking {ref_num} is already {status_word} and cannot be edited.",
+                    show_help=False
+                )
+                return
         else:
-            send_whatsapp_message(
-                phone,
-                "⚠️ No saved bookings to edit yet.\n\nSave one first, e.g. Anjali cake 14 Apr 6pm"
-            )
+            reminder = get_most_recent_reminder(user_id)
+            if not reminder:
+                send_whatsapp_message(
+                    phone,
+                    "⚠️ No saved bookings to edit yet.\n\nSave one first, e.g. Anjali cake 14 Apr 6pm"
+                )
+                return
+        synthetic_state = {
+            "step": "just_saved",
+            "reminder_id": reminder["id"],
+            "booking_ref": reminder.get("booking_ref"),
+            "task": reminder.get("task", "")
+        }
+        handle_reminder_state(user_id, phone, "edit", synthetic_state)
         return
 
     # Standard intents

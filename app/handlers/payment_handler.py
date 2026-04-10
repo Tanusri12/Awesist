@@ -195,10 +195,11 @@ def handle_remind_customer(user_id: str, phone: str, text: str):
         return
     customer_phone = r.get("customer_phone")
     if not customer_phone:
+        ref = r.get("booking_ref")
         send_whatsapp_message(
             phone,
-            f"⚠️ No phone number saved for *{r['customer'] or r['task']}*.\n\n"
-            f"Add one via *edit* → phone 9876543210",
+            f"⚠️ No phone number saved for this booking.\n\n"
+            f"Add one: *edit {ref}* → then reply: phone 9876543210",
             show_help=False
         )
         return
