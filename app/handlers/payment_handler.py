@@ -3,7 +3,8 @@ from datetime import datetime, date
 from calendar import month_name
 from repositories.payment_repository import (
     get_unpaid, mark_paid, get_monthly_earnings, create_payment_only,
-    delete_payment_entry, get_pending_summary,
+    delete_payment_entry, get_pending_summary, get_notified_payments,
+    update_customer_msg_id,
 )
 from whatsapp import send_whatsapp_message
 
@@ -163,9 +164,8 @@ def handle_thankyou_reply(user_id: str, phone: str, text: str, state: dict) -> b
         except Exception:
             biz = "us"
 
-        first_name = customer_name.split()[0].capitalize() if customer_name else "there"
         msg = (
-            f"Hi {first_name}! 👋\n\n"
+            f"Hi! 👋\n\n"
             f"Payment received for your order. Thank you so much! 🙏\n\n"
             f"— {biz}"
         )
@@ -210,25 +210,81 @@ def handle_remind_customer(user_id: str, phone: str, text: str):
     except Exception:
         biz = "us"
 
-    customer_name = r["customer"] or r["task"] or "there"
-    first_name    = customer_name.split()[0].capitalize()
-    balance       = float(r["balance"])
+    balance = float(r["balance"])
 
     nudge_msg = (
-        f"Hi {first_name}! 👋\n\n"
+        f"Hi! 👋\n\n"
         f"Just a gentle reminder — a balance of *Rs.{balance:.0f}* is due for your order.\n\n"
         f"Please pay at your earliest convenience. Thank you! 🙏\n\n"
         f"— {biz}"
     )
-    send_whatsapp_message(str(customer_phone), nudge_msg, show_help=False)
+    from whatsapp import send_whatsapp_message_tracked
+    wamid = send_whatsapp_message_tracked(str(customer_phone), nudge_msg)
+    if wamid:
+        update_customer_msg_id(r["id"], wamid)
+
     display_num = str(customer_phone)[-10:]
     send_whatsapp_message(
         phone,
         f"✅ Payment reminder sent to {display_num}!\n\n"
-        f"Message:\n\"{nudge_msg[:80]}...\"\n\n"
-        f"Reply *unpaid* · *earnings*",
+        f"Reply *msgs* to see all client notifications · *unpaid* · *earnings*",
         show_help=False
     )
+
+
+def handle_client_msgs(user_id: str, phone: str):
+    """Show all customer notifications sent by this vendor."""
+    rows = get_notified_payments(user_id)
+    if not rows:
+        send_whatsapp_message(
+            phone,
+            "✅ No pending client notifications — all notified customers have paid!\n\n"
+            "Use *remind #N* to send a payment reminder to a customer.",
+            show_help=False
+        )
+        return
+
+    _STATUS_ICON = {
+        "read":      "👀 Seen",
+        "delivered": "📩 Received",
+        "sent":      "📤 Sent",
+    }
+
+    lines = [f"📨 *Client Notifications ({len(rows)})*\n"]
+    for i, r in enumerate(rows, start=1):
+        ref             = r.get("booking_ref")
+        task            = (r.get("task") or r.get("customer") or "Order")
+        balance         = float(r.get("balance") or 0)
+        pay_status      = r.get("status", "pending")
+        msg_status      = r.get("customer_msg_status")
+        customer_notified = r.get("customer_notified", False)
+        notify_at       = r.get("customer_notify_at")
+
+        bal_str  = f"💰 Rs.{int(balance)} due" if balance > 0 and pay_status != "paid" else "✅ Paid"
+        time_str = ""
+        if notify_at:
+            try:
+                if isinstance(notify_at, str):
+                    from datetime import datetime as _dt
+                    notify_at = _dt.fromisoformat(notify_at)
+                time_str = f" · {notify_at.strftime('%-d %b, %-I:%M %p')}"
+            except Exception:
+                pass
+        if not customer_notified:
+            delivery = f"⏳ Scheduled{time_str}"
+            time_str = ""
+        else:
+            delivery = _STATUS_ICON.get(msg_status, "📤 Sent")
+
+        ref_str = f"   Booking Ref: {ref}" if ref else ""
+        lines.append(f"{i}. {task}{time_str}")
+        if ref_str:
+            lines.append(ref_str)
+        lines.append(f"   {delivery} · {bal_str}")
+        lines.append("")
+
+    lines.append("Reply *remind N* to nudge again · *unpaid*")
+    send_whatsapp_message(phone, "\n".join(lines), show_help=False)
 
 
 def handle_remove_payment(user_id: str, phone: str, text: str):

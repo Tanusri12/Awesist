@@ -453,6 +453,97 @@ def mark_customer_notified(payment_id: int):
         release_connection(conn)
 
 
+def get_notified_payments(user_id: str) -> list:
+    """All payments where a customer notification was sent, newest first."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute(
+            """
+            SELECT
+                p.id,
+                p.customer,
+                p.customer_phone,
+                p.total,
+                p.advance,
+                ROUND(p.total - p.advance, 2) AS balance,
+                p.status,
+                p.customer_notified,
+                p.customer_notify_at,
+                p.customer_msg_status,
+                r.task,
+                r.due_at,
+                r.booking_ref
+            FROM payments p
+            LEFT JOIN reminders r ON r.id = p.reminder_id
+            WHERE p.user_id = %s
+              AND p.notify_customer = TRUE
+              AND p.customer_phone IS NOT NULL
+              AND p.status = 'pending'
+              AND p.total > p.advance
+              AND (r.id IS NULL OR (
+                    r.status NOT IN ('delivered', 'cancelled')
+                    AND (r.due_at IS NULL OR r.due_at > (NOW() AT TIME ZONE 'Asia/Kolkata'))
+              ))
+            ORDER BY p.customer_notify_at DESC NULLS LAST
+            LIMIT 20
+            """,
+            (user_id,)
+        )
+        return cursor.fetchall()
+    except Exception as e:
+        print("ERROR get_notified_payments:", e)
+        return []
+    finally:
+        cursor.close()
+        release_connection(conn)
+
+
+def update_customer_msg_id(payment_id: int, wamid: str):
+    """Store the WhatsApp message ID after sending a customer notification."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE payments SET customer_msg_id = %s, customer_msg_status = 'sent' WHERE id = %s",
+            (wamid, payment_id)
+        )
+        conn.commit()
+    except Exception as e:
+        print("ERROR update_customer_msg_id:", e)
+        conn.rollback()
+    finally:
+        cursor.close()
+        release_connection(conn)
+
+
+def update_customer_msg_status(wamid: str, status: str):
+    """Update delivery status for a customer notification by wamid."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE payments
+            SET customer_msg_status = %s
+            WHERE customer_msg_id = %s
+              AND (
+                customer_msg_status IS NULL
+                OR (customer_msg_status = 'sent'     AND %s IN ('delivered', 'read'))
+                OR (customer_msg_status = 'delivered' AND %s = 'read')
+              )
+            """,
+            (status, wamid, status, status)
+        )
+        conn.commit()
+    except Exception as e:
+        print("ERROR update_customer_msg_status:", e)
+        conn.rollback()
+    finally:
+        cursor.close()
+        release_connection(conn)
+
+
 def get_customer_notification_count(user_id: str) -> int:
     """Count how many customer notifications have already been sent for this user."""
     conn = get_connection()

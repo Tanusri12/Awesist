@@ -59,3 +59,29 @@ def send_whatsapp_message(phone_number: str, message: str, show_help: bool = Fal
     except Exception as e:
         print(f"WA EXCEPTION: {e}")
         return False
+
+
+def send_whatsapp_message_tracked(phone_number: str, message: str) -> str | None:
+    """Send a message and return the wamid (WhatsApp message ID), or None on failure."""
+    url = f"https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": phone_number,
+        "type": "text",
+        "text": {"body": message},
+    }
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
+        print(f"WA(tracked) → {phone_number[:6]}*** | status: {response.status_code}")
+        if response.status_code != 200:
+            print("WA ERROR:", response.text)
+            return None
+        data = response.json()
+        return data.get("messages", [{}])[0].get("id")
+    except Exception as e:
+        print(f"WA EXCEPTION: {e}")
+        return None

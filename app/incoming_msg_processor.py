@@ -11,7 +11,7 @@ from repositories.user_repository import (
 from commands.commands import handle_command
 from handlers.onboarding import handle_onboarding
 from handlers.reminder_handler import handle_create_reminder, handle_reminder_state
-from handlers.payment_handler import handle_unpaid, handle_mark_paid, handle_earnings, handle_track_payment, handle_remove_payment
+from handlers.payment_handler import handle_unpaid, handle_mark_paid, handle_earnings, handle_track_payment, handle_remove_payment, handle_client_msgs
 from handlers.list_handler import handle_list_reminders, handle_delete_reminder
 from whatsapp import send_whatsapp_message, mark_message_read
 
@@ -84,9 +84,26 @@ def extract_message(data: dict):
         return None
 
 
+def _handle_status_update(data: dict):
+    """Process WhatsApp delivery/read status callbacks and update payment records."""
+    try:
+        value = data["entry"][0]["changes"][0]["value"]
+        if "statuses" not in value:
+            return
+        for s in value["statuses"]:
+            wamid  = s.get("id")
+            status = s.get("status")  # sent | delivered | read | failed
+            if wamid and status in ("delivered", "read"):
+                from repositories.payment_repository import update_customer_msg_status
+                update_customer_msg_status(wamid, status)
+    except Exception as e:
+        print("STATUS UPDATE ERROR:", e)
+
+
 def process_message(data: dict):
     phone = None
     try:
+        _handle_status_update(data)
         msg_data = extract_message(data)
         if not msg_data:
             return
@@ -650,6 +667,11 @@ def route_intent(user_id: str, phone: str, text: str):
     if text_lower.startswith("find "):
         from handlers.list_handler import handle_find_orders
         handle_find_orders(user_id, phone, text)
+        return
+
+    # Client msgs — show all customer notifications sent
+    if text_lower in ("msgs", "messages", "client msgs", "notifications", "client notifications"):
+        handle_client_msgs(user_id, phone)
         return
 
     # Remind — send payment nudge to customer

@@ -89,7 +89,7 @@ def handle_list_reminders(user_id: str, phone: str):
             if pay_str:
                 row += f" · {pay_str}"
             # Second line: booking ref (indented)
-            row += f"\n   🔖 Booking Ref: #{ref}"
+            row += f"\n   🔖 Booking Ref: {ref}"
             lines.append(row)
 
         lines.append("")
