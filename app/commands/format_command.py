@@ -11,6 +11,7 @@ def format_commands():
     message += "✅ *done #5* → mark booking #5 delivered\n"
     message += "🗑️ *delete #5* → delete booking #5\n"
     message += "💰 *unpaid* → see pending balances\n"
+    message += "📨 *msgs* → see client notification status\n"
     message += "💵 *earnings* → this month's income\n"
     message += "🔍 *find Anjali* → search by customer name\n"
     message += "✏️ *edit* → update the last saved booking\n"
