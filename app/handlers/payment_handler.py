@@ -92,8 +92,10 @@ def handle_mark_paid(user_id: str, phone: str, text: str):
             send_whatsapp_message(phone, "⚠️ Number not found. Send *unpaid* to see your list.", show_help=False)
             return
         mark_paid(r["id"], user_id)
-        customer_name = r["customer"] or r["task"] or "the customer"
+        task   = r["task"] or r["customer"] or "the order"
         amount = float(r["balance"])
+        ref    = r.get("booking_ref")
+        ref_line = f"🔖 Booking Ref: *{ref}*\n" if ref else ""
 
         # Check if we have a customer phone to offer thank-you
         customer_phone_raw = r.get("customer_phone")
@@ -103,14 +105,15 @@ def handle_mark_paid(user_id: str, phone: str, text: str):
                 "step": "awaiting_thankyou",
                 "payment_id": r["id"],
                 "customer_phone": str(customer_phone_raw),
-                "customer_name": customer_name,
+                "customer_name": r["customer"] or task,
                 "task": r.get("task", ""),
                 "amount": amount,
             })
             send_whatsapp_message(
                 phone,
                 f"✅ *Payment collected!*\n\n"
-                f"📝 {customer_name}\n"
+                f"📝 {task}\n"
+                f"{ref_line}"
                 f"💰 Rs.{amount:.0f} fully paid\n\n"
                 f"👋 Send a thank-you to {display_num}?\n"
                 f"Reply *yes* to send  ·  *skip* to skip",
@@ -120,7 +123,8 @@ def handle_mark_paid(user_id: str, phone: str, text: str):
             send_whatsapp_message(
                 phone,
                 f"✅ *Payment collected!*\n\n"
-                f"📝 {customer_name}\n"
+                f"📝 {task}\n"
+                f"{ref_line}"
                 f"💰 Rs.{amount:.0f} fully paid\n\n"
                 f"Reply *earnings* · *unpaid*",
                 show_help=False
