@@ -517,8 +517,7 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
         ]
         if remind_val:
             lines.append(f"Reminder: {remind_val}")
-        if phone_val:
-            lines.append(f"Phone: {phone_val}")
+        lines.append(f"Phone: {phone_val if phone_val else 'e.g. 9876543210 (to notify customer)'}")
         lines.append(f"Payment: {pay_val}")
         lines.append("\n_Edit any line above and send the whole message back._")
         send_whatsapp_message(phone, "\n".join(lines), show_help=False)
