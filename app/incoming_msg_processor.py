@@ -2,6 +2,7 @@
 Main message processor — extracts message, routes to the right handler.
 This file only does routing — all logic lives in handlers/.
 """
+import re
 from conversation_memory import get_state, set_state, clear_state
 from repositories.user_repository import (
     get_or_create_user,
