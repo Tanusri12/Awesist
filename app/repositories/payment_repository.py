@@ -200,6 +200,27 @@ def mark_paid_by_reminder(reminder_id: int, user_id: str) -> dict:
         release_connection(conn)
 
 
+def get_payment_by_id(payment_id: int) -> dict:
+    """Get a payment record by its own ID."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute(
+            """
+            SELECT id, customer, customer_phone, total, advance,
+                   ROUND(total - advance, 2) AS balance, status, notify_customer
+            FROM payments
+            WHERE id = %s
+            """,
+            (payment_id,)
+        )
+        result = cursor.fetchone()
+        return dict(result) if result else None
+    finally:
+        cursor.close()
+        release_connection(conn)
+
+
 def get_payment_for_reminder(reminder_id: int) -> dict:
     """Get payment record for a reminder — used in worker message."""
     conn = get_connection()
