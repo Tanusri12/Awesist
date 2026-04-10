@@ -340,18 +340,18 @@ def handle_find_orders(user_id: str, phone: str, text: str):
         else:
             pay_str = f"💰 Rs.{int(balance)} due"
 
-        line = f"#{ref}. {task}"
+        line = f"{task}"
         if due_str:
             line += f" — {due_str}"
-        if pay_str:
-            line += f" {pay_str}"
+        line += f" {pay_str}"
+        line += f"\n   Booking Ref: *{ref}*"
         lines.append(line)
+        lines.append("")
 
-    lines.append("")
     summary = f"Total from {name.capitalize()}: *Rs.{int(total_from):,}*"
     if total_pending > 0:
         summary += f"  ·  Rs.{int(total_pending):,} still pending"
     lines.append(summary)
-    lines.append("paid #N to mark collected · done #N when delivered")
+    lines.append("*paid N* to mark collected · *done N* when delivered · *help* for more")
 
     send_whatsapp_message(phone, "\n".join(lines), show_help=False)

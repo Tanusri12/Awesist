@@ -517,7 +517,7 @@ def _send_help(phone: str, topic: str = ""):
             "Anjali cake 14 Apr 6pm total 1200 advance 300\n\n"
             "*View bookings:*\n"
             "• *bookings* — see all upcoming orders\n"
-            "• *find Anjali* — search by customer name\n\n"
+            "• *booking 15* — see full details of booking 15\n\n"
             "*Update a booking:*\n"
             "• *edit* — update the last saved booking\n"
             "• *edit 15* — update booking ref 15\n\n"
@@ -583,7 +583,7 @@ def _send_help(phone: str, topic: str = ""):
             phone,
             "📖 *Help*\n\n"
             "*📦 Bookings*\n"
-            "• *bookings* · *find Anjali* · *done 2* · *edit* · *delete 2*\n"
+            "• *bookings* · *booking 15* · *done 2* · *edit* · *delete 2*\n"
             "Reply *help bookings* for more\n\n"
             "*💰 Payments*\n"
             "• *unpaid* · *paid 2* · *remind 2*\n"
