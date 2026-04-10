@@ -985,7 +985,7 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
 # These are messages the user clearly intends as commands, not order content.
 _ESCAPE_COMMANDS = {
     "help", "reminders", "list", "unpaid", "pending", "earnings", "income",
-    "menu", "commands", "skip", "reset", "stop", "quit", "exit", "new",
+    "menu", "commands", "reset", "stop", "quit", "exit", "new",
     "done", "paid", "find", "edit", "update", "change", "track", "remove",
 }
 _ESCAPE_PREFIXES = (
