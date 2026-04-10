@@ -102,12 +102,14 @@ def process_reminders():
             if payment and float(payment.get("balance") or 0) > 0:
                 pay_line = f"\n💰 Rs.{float(payment['balance']):.0f} balance due"
 
+            ref = r.get("booking_ref") or ""
+            ref_str = f"  ·  Booking #{ref}" if ref else ""
             message = (
-                f"🔔 *Reminder — delivery soon!*\n\n"
+                f"🔔 *Reminder — delivery soon!*{ref_str}\n\n"
                 f"📝 {task_title}"
                 f"{due_str}"
                 f"{pay_line}\n\n"
-                f"done 1 → mark delivered\n"
+                f"done {ref} → mark delivered\n"
                 f"unpaid → see all pending"
             )
 

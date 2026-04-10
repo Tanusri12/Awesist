@@ -1,5 +1,5 @@
 from datetime import datetime, date
-from repositories.reminder_repository import get_user_reminders, delete_reminder, find_reminders_by_name, mark_reminder_delivered
+from repositories.reminder_repository import get_user_reminders, delete_reminder, find_reminders_by_name, mark_reminder_delivered, get_reminder_by_booking_ref
 from whatsapp import send_whatsapp_message
 
 
@@ -24,7 +24,7 @@ def handle_list_reminders(user_id: str, phone: str):
     if not reminders:
         send_whatsapp_message(
             phone,
-            "📭 No upcoming orders.\n\nSave one: Anjali cake 14 Apr 6pm",
+            "📭 No upcoming bookings.\n\nSave one: Anjali cake 14 Apr 6pm",
             show_help=False
         )
         return
@@ -33,14 +33,14 @@ def handle_list_reminders(user_id: str, phone: str):
 
     from collections import defaultdict
     by_date = defaultdict(list)
-    for i, r in enumerate(reminders, start=1):
+    for r in reminders:
         due_dt  = _to_dt(r.get("due_at"))
         rem_dt  = _to_dt(r.get("reminder_time"))
         key_dt  = due_dt or rem_dt
         key_day = key_dt.date() if key_dt else date.max
-        by_date[key_day].append((i, r, due_dt, rem_dt))
+        by_date[key_day].append((r, due_dt, rem_dt))
 
-    lines = ["📅 *Upcoming Orders*\n"]
+    lines = ["📅 *Upcoming Bookings*\n"]
 
     from datetime import timedelta as _td
     for day in sorted(by_date.keys()):
@@ -55,7 +55,8 @@ def handle_list_reminders(user_id: str, phone: str):
 
         lines.append(day_label)
 
-        for idx, r, due_dt, rem_dt in entries:
+        for r, due_dt, rem_dt in entries:
+            ref        = r.get("booking_ref") or "?"
             task       = r.get("task") or "—"
             time_str   = _fmt_time(due_dt) if due_dt else ""
             remind_str = _fmt_time(rem_dt) if rem_dt else ""
@@ -76,8 +77,8 @@ def handle_list_reminders(user_id: str, phone: str):
             else:
                 pay_str = ""
 
-            # Build single line: idx. Task · 3 PM 🔔 1 PM · 💰 Rs.X due
-            row = f"{idx}. {task}"
+            # Build single line: #N. Task · 3 PM 🔔 1 PM · 💰 Rs.X due
+            row = f"#{ref}. {task}"
             if time_str:
                 row += f" · {time_str}"
             if remind_str:
@@ -88,7 +89,7 @@ def handle_list_reminders(user_id: str, phone: str):
 
         lines.append("")
 
-    lines.append("Reply *done 1* when delivered · *unpaid* to collect payments · *help*")
+    lines.append("Reply *done #* with booking number · *unpaid* to collect payments · *help*")
     send_whatsapp_message(phone, "\n".join(lines), show_help=False)
 
 
@@ -110,7 +111,7 @@ def handle_delete_reminder(user_id: str, phone: str, text: str):
                 pass
         send_whatsapp_message(
             phone,
-            f"🗑️ All {len(reminders)} reminder{'s' if len(reminders)>1 else ''} deleted.",
+            f"🗑️ All {len(reminders)} booking{'s' if len(reminders)>1 else ''} deleted.",
             show_help=False
         )
         return
@@ -120,20 +121,17 @@ def handle_delete_reminder(user_id: str, phone: str, text: str):
         send_whatsapp_message(phone, "⚠️ Send: *delete 2*  or  *delete 1 3 5*  or  *delete all*", show_help=False)
         return
 
-    reminders = get_user_reminders(user_id)
-
     # Single delete — ask for confirmation
     if len(numbers) == 1:
-        idx = numbers[0] - 1
-        if idx < 0 or idx >= len(reminders):
-            send_whatsapp_message(phone, "⚠️ Reminder not found. Send *reminders* to see your list.", show_help=False)
+        r = get_reminder_by_booking_ref(user_id, numbers[0])
+        if not r:
+            send_whatsapp_message(phone, f"⚠️ Booking #{numbers[0]} not found. Send *bookings* to see your list.", show_help=False)
             return
-        r = reminders[idx]
         due_dt = _to_dt(r.get("due_at"))
         due_str = due_dt.strftime("%-d %b %-I:%M %p") if due_dt else ""
         balance = float(r.get("balance") or 0)
         pay_str = f"\n   💰 Rs.{int(balance)} balance due" if balance > 0 else ""
-        desc = f"📝 {r.get('task', '—')}" + (f"  —  {due_str}" if due_str else "") + pay_str
+        desc = f"#{numbers[0]}  📝 {r.get('task', '—')}" + (f"  —  {due_str}" if due_str else "") + pay_str
         set_state(phone, {
             "step": "awaiting_delete_confirm",
             "reminder_id": r["id"],
@@ -141,37 +139,37 @@ def handle_delete_reminder(user_id: str, phone: str, text: str):
         })
         send_whatsapp_message(
             phone,
-            f"🗑️ Delete this order?\n\n{desc}\n\n"
+            f"🗑️ Delete this booking?\n\n{desc}\n\n"
             f"Reply *yes* to delete  ·  *cancel* to keep it",
             show_help=False
         )
         return
 
-    # Multi-delete — no confirmation needed
+    # Multi-delete — look up each by booking_ref, no confirmation needed
     deleted = []
     not_found = []
-    for num in sorted(set(numbers), reverse=True):
-        index = num - 1
-        if index < 0 or index >= len(reminders):
-            not_found.append(num)
+    for ref in sorted(set(numbers)):
+        r = get_reminder_by_booking_ref(user_id, ref)
+        if not r:
+            not_found.append(ref)
         else:
             try:
-                delete_reminder(reminders[index]["id"], user_id)
-                deleted.append(num)
+                delete_reminder(r["id"], user_id)
+                deleted.append(ref)
             except Exception:
-                not_found.append(num)
+                not_found.append(ref)
 
     if deleted and not not_found:
-        send_whatsapp_message(phone, f"🗑️ Deleted {len(deleted)} orders ({', '.join(str(n) for n in sorted(deleted))}).", show_help=False)
+        send_whatsapp_message(phone, f"🗑️ Deleted bookings: {', '.join('#'+str(n) for n in sorted(deleted))}.", show_help=False)
     elif deleted and not_found:
         send_whatsapp_message(
             phone,
-            f"🗑️ Deleted: {', '.join(str(n) for n in sorted(deleted))}\n"
-            f"⚠️ Not found: {', '.join(str(n) for n in sorted(not_found))}",
+            f"🗑️ Deleted: {', '.join('#'+str(n) for n in sorted(deleted))}\n"
+            f"⚠️ Not found: {', '.join('#'+str(n) for n in sorted(not_found))}",
             show_help=False
         )
     else:
-        send_whatsapp_message(phone, "⚠️ Reminder not found. Send *reminders* to see your list.", show_help=False)
+        send_whatsapp_message(phone, f"⚠️ Booking(s) not found. Send *bookings* to see your list.", show_help=False)
 
 
 def handle_delete_confirm(user_id: str, phone: str, text: str, state: dict) -> bool:
@@ -184,46 +182,46 @@ def handle_delete_confirm(user_id: str, phone: str, text: str, state: dict) -> b
     if t in ("yes", "y", "haan", "ha", "confirm", "delete", "ok"):
         try:
             delete_reminder(reminder_id, user_id)
-            send_whatsapp_message(phone, "🗑️ Order deleted.\n\nReply *reminders* · *unpaid*", show_help=False)
+            send_whatsapp_message(phone, "🗑️ Booking deleted.\n\nReply *bookings* · *unpaid*", show_help=False)
         except Exception:
             send_whatsapp_message(phone, "⚠️ Could not delete. Try again.", show_help=False)
     else:
-        send_whatsapp_message(phone, "✅ Kept — nothing deleted.\n\nReply *reminders* · *unpaid*", show_help=False)
+        send_whatsapp_message(phone, "✅ Kept — nothing deleted.\n\nReply *bookings* · *unpaid*", show_help=False)
     return True
 
 
 def handle_done_reminder(user_id: str, phone: str, text: str):
-    """done <number> — mark order as delivered."""
+    """done <number> — mark order as delivered using booking_ref."""
     import re
     from repositories.payment_repository import get_payment_for_reminder
     numbers = [int(n) for n in re.findall(r'\d+', text)]
     if not numbers:
-        send_whatsapp_message(phone, "⚠️ Send: *done 2*  (use the number from *reminders* list)", show_help=False)
+        send_whatsapp_message(phone, "⚠️ Send: *done 5*  (use the # from your *bookings* list)", show_help=False)
         return
 
-    reminders = get_user_reminders(user_id)
-    idx = numbers[0] - 1
-    if idx < 0 or idx >= len(reminders):
-        send_whatsapp_message(phone, "⚠️ Order not found. Send *reminders* to see your list.", show_help=False)
+    r = get_reminder_by_booking_ref(user_id, numbers[0])
+    if not r:
+        send_whatsapp_message(phone, f"⚠️ Booking #{numbers[0]} not found. Send *bookings* to see your list.", show_help=False)
         return
 
-    r = reminders[idx]
     reminder_id = r["id"]
     task        = r.get("task", "Order")
     balance     = float(r.get("balance") or 0)
 
     mark_reminder_delivered(reminder_id, user_id)
 
+    booking_ref = r.get("booking_ref") or numbers[0]
+
     if balance > 0:
         payment        = get_payment_for_reminder(reminder_id)
         customer_phone = payment.get("customer_phone") if payment else None
         pay_line = f"\n💰 *Rs.{int(balance)} balance still due*"
-        footer = f"\n\npaid {numbers[0]} → mark as collected"
+        footer = f"\n\npaid {booking_ref} → mark as collected"
         if customer_phone:
-            footer += f"\nremind {numbers[0]} → send payment reminder to customer"
+            footer += f"\nremind {booking_ref} → send payment reminder to customer"
         send_whatsapp_message(
             phone,
-            f"✅ *Order #{numbers[0]} marked as delivered!*\n\n"
+            f"✅ *Booking #{booking_ref} marked as delivered!*\n\n"
             f"📝 {task.capitalize()}"
             f"{pay_line}"
             f"{footer}",
@@ -232,9 +230,9 @@ def handle_done_reminder(user_id: str, phone: str, text: str):
     else:
         send_whatsapp_message(
             phone,
-            f"✅ *Order #{numbers[0]} delivered and fully paid! 🎉*\n\n"
+            f"✅ *Booking #{booking_ref} delivered and fully paid! 🎉*\n\n"
             f"📝 {task.capitalize()}\n\n"
-            f"Reply *reminders* · *earnings*",
+            f"Reply *bookings* · *earnings*",
             show_help=False
         )
 
@@ -252,7 +250,7 @@ def handle_find_orders(user_id: str, phone: str, text: str):
     if not results:
         send_whatsapp_message(
             phone,
-            f"🔍 No orders found for '{name}'.\n\nSend *reminders* to see all orders.",
+            f"🔍 No orders found for '{name}'.\n\nSend *bookings* to see all orders.",
             show_help=False
         )
         return
@@ -262,7 +260,8 @@ def handle_find_orders(user_id: str, phone: str, text: str):
     total_pending = 0.0
     lines = [f"🔍 *Orders for {name.capitalize()}:*\n"]
 
-    for i, r in enumerate(results, 1):
+    for r in results:
+        ref     = r.get("booking_ref") or "?"
         task    = (r.get("task") or "—").title()
         due_dt  = _to_dt(r.get("due_at"))
         balance = float(r.get("balance") or 0)
@@ -281,7 +280,7 @@ def handle_find_orders(user_id: str, phone: str, text: str):
         else:
             pay_str = f"💰 Rs.{int(balance)} due"
 
-        line = f"{i}. {task}"
+        line = f"#{ref}. {task}"
         if due_str:
             line += f" — {due_str}"
         if pay_str:
@@ -293,6 +292,6 @@ def handle_find_orders(user_id: str, phone: str, text: str):
     if total_pending > 0:
         summary += f"  ·  Rs.{int(total_pending):,} still pending"
     lines.append(summary)
-    lines.append("paid 1 to mark collected · done 1 when delivered")
+    lines.append("paid #N to mark collected · done #N when delivered")
 
     send_whatsapp_message(phone, "\n".join(lines), show_help=False)

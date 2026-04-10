@@ -98,7 +98,7 @@ _QUESTION_STARTERS = (
 )
 
 _KNOWN_COMMANDS = {
-    "hi", "hello", "hey", "help", "reminders", "unpaid",
+    "hi", "hello", "hey", "help", "reminders", "bookings", "unpaid",
     "earnings", "how", "cancel", "paid",
 }
 

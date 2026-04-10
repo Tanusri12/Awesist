@@ -18,7 +18,7 @@ def detect_command(text):
     if text in ["help", "menu", "commands"]:
         return "HELP"
 
-    if text in ["reminders", "list", "show reminders"]:
+    if text in ["reminders", "bookings", "list", "show reminders", "show bookings"]:
         return "LIST_REMINDERS"
 
     if text.startswith("delete"):
@@ -66,10 +66,10 @@ def classify_intent(text: str):
     # LIST REMINDERS
     # -----------------------------
     if text_lower in [
-        "reminders",
-        "my reminders",
-        "list reminders",
-        "show reminders",
+        "reminders", "bookings",
+        "my reminders", "my bookings",
+        "list reminders", "list bookings",
+        "show reminders", "show bookings",
         "list"
     ]:
         return "list_reminders"

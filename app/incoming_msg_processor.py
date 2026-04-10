@@ -665,17 +665,22 @@ def route_intent(user_id: str, phone: str, text: str):
             handle_mark_paid(user_id, phone, text)
         return
 
-    # ── Edit last reminder (no active state) ─────────────────────────────
+    # ── Edit last booking (no active state) ─────────────────────────────
     if text_lower in ("edit", "update", "change"):
         from repositories.reminder_repository import get_most_recent_reminder
         recent = get_most_recent_reminder(user_id)
         if recent:
-            synthetic_state = {"step": "just_saved", "reminder_id": recent["id"], "task": recent.get("task", "")}
+            synthetic_state = {
+                "step": "just_saved",
+                "reminder_id": recent["id"],
+                "booking_ref": recent.get("booking_ref"),
+                "task": recent.get("task", "")
+            }
             handle_reminder_state(user_id, phone, text_lower, synthetic_state)
         else:
             send_whatsapp_message(
                 phone,
-                "⚠️ No saved orders to edit yet.\n\nSave one first, e.g. Anjali cake 14 Apr 6pm"
+                "⚠️ No saved bookings to edit yet.\n\nSave one first, e.g. Anjali cake 14 Apr 6pm"
             )
         return
 
@@ -694,9 +699,9 @@ def route_intent(user_id: str, phone: str, text: str):
             "🤔 I didn't quite get that.\n\n"
             "Try something like:\n"
             "• Send cake to Anjali on 13th April at 6pm\n"
-            "• *reminders* → see your list\n"
+            "• *bookings* → see your list\n"
             "• *unpaid* → see pending balances\n"
             "• *earnings* → this month's income\n"
-            "• *delete 2* → remove a reminder\n\n"
+            "• *delete 2* → remove a booking\n\n"
             "Type *help* for all commands."
         )

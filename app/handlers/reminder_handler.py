@@ -333,22 +333,22 @@ def _fast_path_with_date(
         )
         return
 
-    reminder_id = _save_reminder_with_due(user_id, task, reminder_dt, due_date, due_time)
-    if not reminder_id:
+    save_result = _save_reminder_with_due(user_id, task, reminder_dt, due_date, due_time)
+    if not save_result:
         clear_state(phone)
         send_whatsapp_message(
             phone,
-            "⚠️ A reminder for that task and date already exists — not saved again.\n\n"
-            "Send *reminders* to see your list, or save a new order with a different date.",
+            "⚠️ A booking for that task and date already exists — not saved again.\n\n"
+            "Send *bookings* to see your list, or save a new order with a different date.",
             show_help=False
         )
         return
 
+    reminder_id, booking_ref = save_result
     reminder_display = reminder_dt.strftime('%d %b %Y %I:%M %p')
-
     due_dt_iso = due_dt.isoformat() if due_dt else None
-
     reminder_label = _reminder_label(reminder_offset)
+    ref_tag = f"Booking *#{booking_ref}*\n"
 
     # ── Total known → ask about customer notification (if phone known), then save ─
     if total is not None:
@@ -356,7 +356,8 @@ def _fast_path_with_date(
             _ask_notify_customer(phone, {
                 "user_id": user_id,
                 "task": task, "due_display": due_display,
-                "reminder_id": reminder_id, "reminder_display": reminder_display,
+                "reminder_id": reminder_id, "booking_ref": booking_ref,
+                "reminder_display": reminder_display,
                 "reminder_label": reminder_label,
                 "customer_phone": customer_phone,
                 "total": total, "advance": advance,
@@ -379,7 +380,7 @@ def _fast_path_with_date(
         if is_first_order:
             send_whatsapp_message(
                 phone,
-                f"🎉 *First booking saved!*\n\n"
+                f"🎉 *First booking saved!* {ref_tag}\n"
                 f"📝 {task}\n"
                 f"📅 Due: {due_display}\n"
                 f"⏰ I'll remind you on *{reminder_display}*\n"
@@ -391,7 +392,7 @@ def _fast_path_with_date(
         else:
             send_whatsapp_message(
                 phone,
-                f"✅ *All saved!*\n\n"
+                f"✅ *All saved!* {ref_tag}\n"
                 f"📝 {task}\n"
                 f"📅 Due: {due_display}\n"
                 f"⏰ Reminder: {reminder_display}\n"
@@ -405,7 +406,8 @@ def _fast_path_with_date(
         _ask_notify_customer(phone, {
             "user_id": user_id,
             "task": task, "due_display": due_display,
-            "reminder_id": reminder_id, "reminder_display": reminder_display,
+            "reminder_id": reminder_id, "booking_ref": booking_ref,
+            "reminder_display": reminder_display,
             "reminder_label": reminder_label,
             "customer_phone": customer_phone,
             "total": None, "advance": None,
@@ -419,6 +421,7 @@ def _fast_path_with_date(
     set_state(phone, {
         "step": "just_saved",
         "reminder_id": reminder_id,
+        "booking_ref": booking_ref,
         "user_id": user_id,
         "task": task,
         "due_date": due_date,
@@ -428,7 +431,7 @@ def _fast_path_with_date(
     if is_first_order:
         send_whatsapp_message(
             phone,
-            f"🎉 *First booking saved!*\n\n"
+            f"🎉 *First booking saved!* {ref_tag}\n"
             f"📝 {task}\n"
             f"📅 Due: {due_display}\n"
             f"⏰ I'll remind you on *{reminder_display}*{label_str}\n\n"
@@ -441,7 +444,7 @@ def _fast_path_with_date(
     else:
         send_whatsapp_message(
             phone,
-            f"✅ *Saved!*\n\n"
+            f"✅ *Saved!* {ref_tag}\n"
             f"📝 {task}\n"
             f"📅 Due: {due_display}\n"
             f"⏰ Reminder: {reminder_display}{label_str}\n\n"
@@ -1267,18 +1270,20 @@ def _handle_awaiting_reminder_time(user_id: str, phone: str, text: str, state: d
         )
         return True
 
-    reminder_id = _save_reminder_with_due(user_id, task, reminder_dt, due_date, due_time)
-    if not reminder_id:
+    save_result = _save_reminder_with_due(user_id, task, reminder_dt, due_date, due_time)
+    if not save_result:
         clear_state(phone)
         send_whatsapp_message(
             phone,
-            "⚠️ A reminder for that task and date already exists — not saved again.\n\n"
-            "Send *reminders* to see your list, or save a new order with a different date.",
+            "⚠️ A booking for that task and date already exists — not saved again.\n\n"
+            "Send *bookings* to see your list, or save a new order with a different date.",
             show_help=False
         )
         return True
 
+    reminder_id, booking_ref = save_result
     reminder_display = reminder_dt.strftime('%d %b %Y %I:%M %p')
+    ref_tag = f"Booking *#{booking_ref}*\n"
 
     # If we already have total → save payment and finish
     if total is not None:
@@ -1309,7 +1314,8 @@ def _handle_awaiting_reminder_time(user_id: str, phone: str, text: str, state: d
             preview_line = f"\n\n📨 *Message {display_num} will receive:*\n{_customer_msg_preview(phone, task, due_dt_for_notify, balance)}"
         send_whatsapp_message(
             phone,
-            f"✅ *All saved!*\n\n📝 {task}\n📅 Due: {due_display}\n"
+            f"✅ *All saved!* {ref_tag}\n"
+            f"📝 {task}\n📅 Due: {due_display}\n"
             f"⏰ Reminder: {reminder_display}\n{payment_line}{notify_line}{preview_line}\n\n"
             f"Reply *unpaid* to see pending balances."
         )
@@ -1319,12 +1325,13 @@ def _handle_awaiting_reminder_time(user_id: str, phone: str, text: str, state: d
     if customer_phone:
         set_state(phone, {
             "step": "awaiting_payment", "task": task, "due_display": due_display,
-            "reminder_id": reminder_id, "reminder_display": reminder_display,
+            "reminder_id": reminder_id, "booking_ref": booking_ref,
+            "reminder_display": reminder_display,
             "customer_phone": customer_phone
         })
         send_whatsapp_message(
             phone,
-            f"✅ Reminder set for {reminder_display}\n\n"
+            f"✅ {ref_tag}\n"
             f"💰 What's the total order amount?\n\n"
             f"Reply with amount e.g. *850*  ·  or *skip*"
         )
@@ -1334,11 +1341,12 @@ def _handle_awaiting_reminder_time(user_id: str, phone: str, text: str, state: d
             "task":             task,
             "due_display":      due_display,
             "reminder_id":      reminder_id,
+            "booking_ref":      booking_ref,
             "reminder_display": reminder_display
         })
         send_whatsapp_message(
             phone,
-            f"✅ Reminder set for {reminder_display}\n\n"
+            f"✅ {ref_tag}\n"
             f"📱 Customer's WhatsApp number?\n\n"
             f"I'll send them a reminder too when the time comes.\n\n"
             f"e.g. *9876543210*  ·  or *skip* to not notify them"
@@ -1591,6 +1599,9 @@ def _ask_notify_customer(phone: str, state: dict, preset_option=None):
 
     notify_line  = f"\n📲 {display_num} notified: {notify_label}" if notify_at else ""
 
+    booking_ref = state.get("booking_ref")
+    ref_tag = f"Booking *#{booking_ref}*\n" if booking_ref else ""
+
     if total is not None:
         # Total known → save payment and finish immediately
         adv_amount = min(float(advance or 0), float(total))
@@ -1608,7 +1619,7 @@ def _ask_notify_customer(phone: str, state: dict, preset_option=None):
         preview = _customer_msg_preview(phone, task, due_dt, balance)
         send_whatsapp_message(
             phone,
-            f"✅ *All saved!*\n\n"
+            f"✅ *All saved!* {ref_tag}\n"
             f"📝 {task}\n"
             f"📅 Due: {due_display}\n"
             f"⏰ Reminder: {reminder_display}{label_str}"
@@ -1629,7 +1640,7 @@ def _ask_notify_customer(phone: str, state: dict, preset_option=None):
         preview = _customer_msg_preview(phone, task, due_dt, 0)
         send_whatsapp_message(
             phone,
-            f"✅ Reminder saved!\n\n"
+            f"✅ Booking saved! {ref_tag}\n"
             f"📝 {task}\n"
             f"📅 Due: {due_display}\n"
             f"⏰ Reminder: {reminder_display}{label_str}"
@@ -2184,6 +2195,7 @@ def _extract_customer(task: str) -> str:
 
 
 def _save_reminder_with_due(user_id: str, task: str, reminder_dt, due_date: str, due_time: str):
+    """Save reminder and return (reminder_id, booking_ref) or None on duplicate/error."""
     due_at = None
     if due_date and due_time:
         due_at = _build_datetime(due_date, due_time)
@@ -2199,16 +2211,20 @@ def _save_reminder_with_due(user_id: str, task: str, reminder_dt, due_date: str,
         )
         cursor.execute(
             """
-            INSERT INTO reminders (user_id, task, reminder_time, due_at)
-            VALUES (%s, %s, %s, %s)
+            WITH next_ref AS (
+                SELECT COALESCE(MAX(booking_ref), 0) + 1 AS ref_num
+                FROM reminders WHERE user_id = %s
+            )
+            INSERT INTO reminders (user_id, task, reminder_time, due_at, booking_ref)
+            SELECT %s, %s, %s, %s, ref_num FROM next_ref
             ON CONFLICT (user_id, task, reminder_time) DO NOTHING
-            RETURNING id
+            RETURNING id, booking_ref
             """,
-            (user_id, task, reminder_dt, due_at)
+            (user_id, user_id, task, reminder_dt, due_at)
         )
         result = cursor.fetchone()
         conn.commit()
-        return result[0] if result else None
+        return (result[0], result[1]) if result else None
     except Exception as e:
         conn.rollback()
         print("ERROR saving reminder:", e)

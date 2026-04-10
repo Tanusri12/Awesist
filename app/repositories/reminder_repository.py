@@ -13,16 +13,20 @@ def create_reminder(user_id: str, task: str, reminder_time: datetime):
         )
         cursor.execute(
             """
-            INSERT INTO reminders (user_id, task, reminder_time)
-            VALUES (%s, %s, %s)
+            WITH next_ref AS (
+                SELECT COALESCE(MAX(booking_ref), 0) + 1 AS ref_num
+                FROM reminders WHERE user_id = %s
+            )
+            INSERT INTO reminders (user_id, task, reminder_time, booking_ref)
+            SELECT %s, %s, %s, ref_num FROM next_ref
             ON CONFLICT (user_id, task, reminder_time) DO NOTHING
-            RETURNING id
+            RETURNING id, booking_ref
             """,
-            (user_id, task, reminder_time)
+            (user_id, user_id, task, reminder_time)
         )
         result = cursor.fetchone()
         conn.commit()
-        return result[0] if result else False
+        return {"id": result[0], "booking_ref": result[1]} if result else False
     except Exception as e:
         conn.rollback()
         print("ERROR creating reminder:", e)
@@ -39,13 +43,37 @@ def get_reminder_by_id(reminder_id: int, user_id: str) -> dict:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute(
             """
-            SELECT r.id, r.task, r.due_at, r.reminder_time,
+            SELECT r.id, r.booking_ref, r.task, r.due_at, r.reminder_time,
                    p.id AS payment_id, p.total, p.advance, p.customer_phone
             FROM reminders r
             LEFT JOIN payments p ON p.reminder_id = r.id
             WHERE r.id = %s AND r.user_id = %s
             """,
             (reminder_id, user_id)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        cursor.close()
+        release_connection(conn)
+
+
+def get_reminder_by_booking_ref(user_id: str, booking_ref: int) -> dict:
+    """Fetch a reminder by its human-readable booking reference number."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute(
+            """
+            SELECT r.id, r.booking_ref, r.task, r.due_at, r.reminder_time, r.status,
+                   p.total, p.advance,
+                   GREATEST(0, COALESCE(p.total, 0) - COALESCE(p.advance, 0)) AS balance,
+                   p.customer_phone
+            FROM reminders r
+            LEFT JOIN payments p ON p.reminder_id = r.id
+            WHERE r.user_id = %s AND r.booking_ref = %s
+            """,
+            (user_id, booking_ref)
         )
         row = cursor.fetchone()
         return dict(row) if row else None
@@ -68,7 +96,7 @@ def fetch_and_lock_due_reminders(limit: int = 20):
                 ORDER BY reminder_time
                 LIMIT %s FOR UPDATE SKIP LOCKED
             )
-            RETURNING id, user_id, task, due_at
+            RETURNING id, user_id, task, due_at, booking_ref
             """,
             (limit,)
         )
@@ -88,6 +116,7 @@ def fetch_and_lock_due_reminders(limit: int = 20):
         return [
             {
                 "id":            r["id"],
+                "booking_ref":   r["booking_ref"],
                 "phone":         r["user_id"],
                 "task":          r["task"],
                 "due_at":        r["due_at"],
@@ -141,7 +170,7 @@ def get_user_reminders(user_id: str) -> list:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute(
             """
-            SELECT r.id, r.task, r.reminder_time, r.due_at,
+            SELECT r.id, r.booking_ref, r.task, r.reminder_time, r.due_at,
                    p.total, p.advance,
                    GREATEST(0, COALESCE(p.total, 0) - COALESCE(p.advance, 0)) AS balance
             FROM reminders r
@@ -164,7 +193,7 @@ def get_most_recent_reminder(user_id: str) -> dict:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute(
             """
-            SELECT id, task, reminder_time, due_at
+            SELECT id, booking_ref, task, reminder_time, due_at
             FROM reminders
             WHERE user_id = %s AND status = 'pending'
             ORDER BY id DESC
@@ -256,7 +285,7 @@ def find_reminders_by_name(user_id: str, name: str) -> list:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute(
             """
-            SELECT r.id, r.task, r.due_at, r.reminder_time, r.status,
+            SELECT r.id, r.booking_ref, r.task, r.due_at, r.reminder_time, r.status,
                    p.total, p.advance, p.customer_phone,
                    GREATEST(0, COALESCE(p.total, 0) - COALESCE(p.advance, 0)) AS balance
             FROM reminders r
@@ -295,7 +324,7 @@ def get_today_reminders_with_payment(user_id: str) -> list:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute(
             """
-            SELECT r.id, r.task, r.reminder_time, r.due_at,
+            SELECT r.id, r.booking_ref, r.task, r.reminder_time, r.due_at,
                    p.total, p.advance,
                    GREATEST(0, COALESCE(p.total, 0) - COALESCE(p.advance, 0)) AS balance
             FROM reminders r

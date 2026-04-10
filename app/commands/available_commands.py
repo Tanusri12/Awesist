@@ -1,7 +1,10 @@
 AVAILABLE_COMMANDS = {
     "help": "Show available commands",
-    "remind": "Create a reminder (example: remind me to call mom tomorrow)",
-    "reminders": "Show all reminders",
-    "delete <number>": "Delete a reminder",
+    "bookings": "Show all upcoming bookings",
+    "done #N": "Mark booking #N as delivered",
+    "delete #N": "Delete booking #N",
+    "unpaid": "See pending balances",
+    "earnings": "This month's income",
+    "find <name>": "Search orders by customer name",
     "invite": "Get invite link for WAssist"
 }

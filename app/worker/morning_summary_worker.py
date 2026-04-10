@@ -72,13 +72,14 @@ def run_morning_summary():
             # ── Today ──────────────────────────────────────────────────────
             if today:
                 lines.append(f"*📅 Today — {now_str}  ({len(today)} order{'s' if len(today)>1 else ''})*")
-                for i, r in enumerate(today, 1):
+                for r in today:
+                    ref    = r.get("booking_ref") or "?"
                     task   = r.get("task") or "—"
                     due_dt = _to_dt(r.get("due_at"))
                     rem_dt = _to_dt(r.get("reminder_time"))
                     pay    = _pay_line(r)
 
-                    lines.append(f"\n{i}. *{task.capitalize()}*")
+                    lines.append(f"\n#{ref}. *{task.capitalize()}*")
                     lines.append(f"   🗓 Due: {_fmt_time(due_dt)}  🔔 Remind: {_fmt_time(rem_dt)}")
                     if pay:
                         lines.append(pay)
@@ -90,12 +91,13 @@ def run_morning_summary():
             if upcoming:
                 lines.append(f"\n*📆 Coming up*")
                 for r in upcoming[:4]:
+                    ref    = r.get("booking_ref") or "?"
                     task   = r.get("task") or "—"
                     due_dt = _to_dt(r.get("due_at"))
                     rem_dt = _to_dt(r.get("reminder_time"))
                     pay    = _pay_line(r)
 
-                    lines.append(f"\n· *{task.capitalize()}*  —  {_fmt_date(due_dt)}")
+                    lines.append(f"\n#{ref}. *{task.capitalize()}*  —  {_fmt_date(due_dt)}")
                     lines.append(f"   🗓 Due: {_fmt_time(due_dt)}  🔔 Remind: {_fmt_time(rem_dt)}")
                     if pay:
                         lines.append(pay)
@@ -123,7 +125,7 @@ def run_morning_summary():
                 pass
 
             # ── Footer ─────────────────────────────────────────────────────
-            lines.append("\nReply *reminders*  ·  *unpaid*  ·  *help*")
+            lines.append("\nReply *bookings*  ·  *unpaid*  ·  *help*")
 
             send_whatsapp_message(user_id, "\n".join(lines), show_help=False)
             mark_summary_sent(user_id)
