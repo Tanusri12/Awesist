@@ -539,9 +539,13 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
         send_whatsapp_message(
             phone,
             "📲 *Notify your customer?*\n\n"
-            "Share their number and we'll automatically WhatsApp them on the order day:\n\n"
-            f"_Hi! 👋 Heads up! Your order from {biz_name} is scheduled for today._\n"
-            "_⏰ Delivery time · 💰 Balance due (if any)_\n\n"
+            "Share their number and we'll WhatsApp them on the order day:\n\n"
+            "```\n"
+            f"Hi! 👋 Heads up! Your order from\n"
+            f"{biz_name} is scheduled for today.\n"
+            "⏰ Delivery time\n"
+            "💰 Balance due (if any)\n"
+            "```\n\n"
             "Reply with their number e.g. *9876543210*\n"
             "Or reply *skip*",
             show_help=False
@@ -586,9 +590,13 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
             f"📝 {task}\n"
             f"{payment_line}\n\n"
             f"📲 *Notify your customer?*\n\n"
-            f"Share their number and we'll automatically WhatsApp them on the order day:\n\n"
-            f"_Hi! 👋 Heads up! Your order from {biz_name} is scheduled for today._\n"
-            f"_⏰ Delivery time · 💰 Balance due (if any)_\n\n"
+            f"Share their number and we'll WhatsApp them on the order day:\n\n"
+            f"```\n"
+            f"Hi! 👋 Heads up! Your order from\n"
+            f"{biz_name} is scheduled for today.\n"
+            f"⏰ Delivery time\n"
+            f"💰 Balance due (if any)\n"
+            f"```\n\n"
             f"Reply with their number e.g. *9876543210*\n"
             f"Or reply *skip*",
             show_help=False
