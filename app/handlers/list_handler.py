@@ -195,6 +195,49 @@ def handle_delete_confirm(user_id: str, phone: str, text: str, state: dict) -> b
     return True
 
 
+def handle_booking_detail(user_id: str, phone: str, ref_num: int):
+    """Show full details of a booking by its booking ref number."""
+    from repositories.payment_repository import get_payment_for_reminder
+    r = get_reminder_by_booking_ref(user_id, ref_num)
+    if not r:
+        send_whatsapp_message(
+            phone,
+            f"⚠️ Booking {ref_num} not found.\n\nSend *bookings* to see your list.",
+            show_help=False
+        )
+        return
+
+    task       = r.get("task") or "—"
+    status     = r.get("status", "pending").title()
+    due_at     = _to_dt(r.get("due_at"))
+    rem_time   = _to_dt(r.get("reminder_time"))
+    due_str    = due_at.strftime("%-d %b %Y, %-I:%M %p") if due_at else "—"
+    rem_str    = rem_time.strftime("%-d %b %Y, %-I:%M %p") if rem_time else "—"
+
+    lines = [
+        f"📋 *Booking {ref_num}*\n",
+        f"📝 {task}",
+        f"📅 Due: {due_str}",
+        f"⏰ Your reminder: {rem_str}",
+        f"🔖 Status: {status}",
+    ]
+
+    pay = get_payment_for_reminder(r["id"]) if r.get("id") else None
+    if pay and float(pay.get("total") or 0) > 0:
+        total   = float(pay["total"])
+        advance = float(pay.get("advance") or 0)
+        balance = total - advance
+        if balance <= 0:
+            lines.append("💰 Fully paid ✅")
+        else:
+            lines.append(f"💰 Total: Rs.{total:.0f}  ·  Paid: Rs.{advance:.0f}  ·  Balance: Rs.{balance:.0f} due")
+        if pay.get("customer_phone"):
+            lines.append(f"📲 Customer: {str(pay['customer_phone'])[-10:]}")
+
+    lines.append("\nReply *edit " + str(ref_num) + "* to update · *done " + str(ref_num) + "* to mark delivered")
+    send_whatsapp_message(phone, "\n".join(lines), show_help=False)
+
+
 def handle_done_reminder(user_id: str, phone: str, text: str):
     """done <number> — mark order as delivered using booking_ref."""
     import re

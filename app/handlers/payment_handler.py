@@ -10,9 +10,9 @@ from whatsapp import send_whatsapp_message
 
 
 def _ref_label(r: dict) -> str:
-    """Return '#5' if booking_ref exists, else '' — used for display and commands."""
+    """Return booking_ref as string if exists, else '' — used for display and commands."""
     ref = r.get("booking_ref")
-    return f"#{ref}" if ref else ""
+    return str(ref) if ref else ""
 
 
 def _find_unpaid_by_ref(unpaid: list, num: int):
@@ -38,7 +38,6 @@ def handle_unpaid(user_id: str, phone: str):
     message = "💰 *Pending balances:*\n\n"
     for i, r in enumerate(unpaid, start=1):
         ref  = _ref_label(r)
-        ref_str = f" {ref}" if ref else ""
         due = r.get("due_at")
         due_str = ""
         if due:
@@ -48,21 +47,21 @@ def handle_unpaid(user_id: str, phone: str):
                 due_str = f" · due {due.strftime('%d %b')} ⚠️ Overdue"
             else:
                 due_str = f" · due {due.strftime('%d %b')}"
-        customer_name = r['customer'] or r['task']
+        task = r['task'] or r['customer'] or "Order"
         ref_line = f"   Booking Ref: {ref}\n" if ref else ""
         message += (
-            f"{i}. *{customer_name}*\n"
+            f"{i}. *{task}*\n"
             f"{ref_line}"
             f"   Total: Rs.{float(r['total']):.0f}  ·  Paid: Rs.{float(r['advance']):.0f}\n"
             f"   *Balance: Rs.{float(r['balance']):.0f} due*{due_str}\n\n"
         )
     message += f"Total due: *Rs.{total_pending:.0f}*\n\n"
-    first_ref  = _ref_label(unpaid[0]) or "1"
-    first_name = (unpaid[0]['customer'] or unpaid[0]['task'] or "customer").split()[0]
+    first_ref = _ref_label(unpaid[0]) or "1"
     message += f"*paid {first_ref}* → mark as received\n"
     message += f"*paid all* → mark all as received\n"
-    message += f"*remind {first_ref}* → send payment reminder to {first_name}\n"
-    message += f"*remove {first_ref}* → remove from this list\n\n"
+    message += f"*remind {first_ref}* → send payment reminder\n"
+    message += f"*remove {first_ref}* → remove from this list\n"
+    message += f"*booking {first_ref}* → see full booking details\n\n"
     message += "Reply *earnings* · *help*"
     send_whatsapp_message(phone, message, show_help=False)
 

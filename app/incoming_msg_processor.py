@@ -655,6 +655,14 @@ def route_intent(user_id: str, phone: str, text: str):
         handle_client_msgs(user_id, phone)
         return
 
+    # Booking detail — "booking 15" or "details 15"
+    import re as _re2
+    _detail_match = _re2.match(r'^(booking|details?)\s+(\d+)$', text_lower)
+    if _detail_match:
+        from handlers.list_handler import handle_booking_detail
+        handle_booking_detail(user_id, phone, int(_detail_match.group(2)))
+        return
+
     # Remind — send payment nudge to customer
     if text_lower.startswith("remind ") or text_lower == "remind":
         from handlers.payment_handler import handle_remind_customer
