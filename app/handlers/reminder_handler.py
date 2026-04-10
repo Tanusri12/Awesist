@@ -1496,10 +1496,13 @@ def _handle_awaiting_advance(user_id: str, phone: str, text: str, state: dict) -
         preview     = _customer_msg_preview(phone, task, due_dt_adv, balance)
         preview_line = f"\n\n📨 *Message {display_num_adv} will receive:*\n{preview}"
 
+    booking_ref = state.get("booking_ref")
+    ref_line = f"🔖 Booking Ref: *#{booking_ref}*\n" if booking_ref else ""
     send_whatsapp_message(
         phone,
         f"✅ *All saved!*\n\n"
         f"📝 {task}\n"
+        f"{ref_line}"
         f"📅 Due: {due_display}\n"
         f"⏰ Your reminder: {reminder_disp}{notify_line}\n"
         f"{payment_line}{preview_line}\n\n"
@@ -1746,10 +1749,13 @@ def _handle_awaiting_notify_customer(user_id: str, phone: str, text: str, state:
         if notify_customer and notify_label and customer_phone:
             preview = _customer_msg_preview(phone, task, due_dt_prev, balance)
             preview_block = f"\n\n📨 *Message {display_num} will receive:*\n{preview}"
+        booking_ref = state.get("booking_ref")
+        ref_line = f"🔖 Booking Ref: *#{booking_ref}*\n" if booking_ref else ""
         send_whatsapp_message(
             phone,
             f"✅ *All saved!*\n\n"
             f"📝 {task}\n"
+            f"{ref_line}"
             f"📅 Due: {due_display}\n"
             f"⏰ Your reminder: {reminder_disp}\n"
             f"{notify_line}\n"
@@ -1868,10 +1874,13 @@ def _handle_awaiting_notify_time(user_id: str, phone: str, text: str, state: dic
         if notify_customer and notify_label and customer_phone:
             preview = _customer_msg_preview(phone, task, due_dt_prev, balance)
             preview_block = f"\n\n📨 *Message {display_num} will receive:*\n{preview}"
+        booking_ref = state.get("booking_ref")
+        ref_line = f"🔖 Booking Ref: *#{booking_ref}*\n" if booking_ref else ""
         send_whatsapp_message(
             phone,
             f"✅ *All saved!*\n\n"
             f"📝 {task}\n"
+            f"{ref_line}"
             f"📅 Due: {due_display}\n"
             f"⏰ Reminder: {reminder_disp}{label_str}\n"
             f"{notify_line}\n"
@@ -1970,9 +1979,14 @@ def _handle_awaiting_payment_notify(user_id: str, phone: str, text: str, state: 
     task_display = task
     bal_for_preview = 0.0
 
+    booking_ref = state.get("booking_ref")
     lines = [
         f"✅ *All saved!*\n",
         f"📝 {task_display}",
+    ]
+    if booking_ref:
+        lines.append(f"🔖 Booking Ref: *#{booking_ref}*")
+    lines += [
         f"📅 Due: {due_display}",
     ]
     if rem_display:
@@ -2100,10 +2114,13 @@ def _handle_awaiting_payment_notify_time(user_id: str, phone: str, text: str, st
     balance_for_preview = float(payment.get("balance") or 0) if payment else 0
     preview = _customer_msg_preview(phone, task, due_dt, balance_for_preview)
     clear_state(phone)
+    booking_ref = state.get("booking_ref")
+    ref_line = f"🔖 Booking Ref: *#{booking_ref}*\n" if booking_ref else ""
     send_whatsapp_message(
         phone,
         f"✅ *All saved!*\n\n"
         f"📝 {task}\n"
+        f"{ref_line}"
         f"📅 Due: {due_display}\n"
         f"⏰ Your reminder: {reminder_display}\n"
         f"📲 {display_num_t} notified: {notify_at.strftime('%-d %b at %-I:%M %p')}\n"

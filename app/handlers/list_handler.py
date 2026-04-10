@@ -40,9 +40,11 @@ def handle_list_reminders(user_id: str, phone: str):
         key_day = key_dt.date() if key_dt else date.max
         by_date[key_day].append((r, due_dt, rem_dt))
 
-    lines = ["📅 *Upcoming Bookings*\n"]
+    total_count = sum(len(v) for v in by_date.values())
+    lines = [f"📅 *Upcoming Bookings ({total_count})*\n"]
 
     from datetime import timedelta as _td
+    serial = 0
     for day in sorted(by_date.keys()):
         entries = by_date[day]
 
@@ -56,6 +58,7 @@ def handle_list_reminders(user_id: str, phone: str):
         lines.append(day_label)
 
         for r, due_dt, rem_dt in entries:
+            serial    += 1
             ref        = r.get("booking_ref") or "?"
             task       = r.get("task") or "—"
             time_str   = _fmt_time(due_dt) if due_dt else ""
@@ -77,19 +80,21 @@ def handle_list_reminders(user_id: str, phone: str):
             else:
                 pay_str = ""
 
-            # Build single line: #N. Task · 3 PM 🔔 1 PM · 💰 Rs.X due
-            row = f"#{ref}. {task}"
+            # First line: serial. Task · time · pay
+            row = f"{serial}. {task}"
             if time_str:
                 row += f" · {time_str}"
             if remind_str:
                 row += f" 🔔 {remind_str}"
             if pay_str:
                 row += f" · {pay_str}"
+            # Second line: booking ref (indented)
+            row += f"\n   🔖 Booking Ref: #{ref}"
             lines.append(row)
 
         lines.append("")
 
-    lines.append("Reply *done #* with booking number · *unpaid* to collect payments · *help*")
+    lines.append("Reply *done #BookingRef* to mark delivered · *unpaid* to collect payments · *help*")
     send_whatsapp_message(phone, "\n".join(lines), show_help=False)
 
 
