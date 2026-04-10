@@ -392,18 +392,6 @@ def handle_earnings(user_id: str, phone: str, text: str):
     msg += f"📦 Orders completed: {data['order_count']}\n"
     msg += f"📈 Avg per order:    ₹{avg:.0f}\n"
 
-    if data["customers"]:
-        msg += "\n*Top customers:*\n"
-        for r in data["customers"][:5]:
-            msg += f"  · {r['customer']} — ₹{float(r['amount']):.0f}"
-            orders = int(r["orders"])
-            if orders > 1:
-                msg += f" ({orders} orders)"
-            msg += "\n"
-        if len(data["customers"]) > 5:
-            rest = len(data["customers"]) - 5
-            msg += f"  + {rest} more customer{'s' if rest > 1 else ''}\n"
-
     # Still pending
     pending = get_pending_summary(user_id)
     if pending["count"] > 0:

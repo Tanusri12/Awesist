@@ -364,16 +364,17 @@ def get_monthly_earnings(user_id: str, year: int, month: int) -> dict:
         cursor.execute(
             """
             SELECT
-                customer,
-                ROUND(SUM(total), 2)  AS amount,
-                COUNT(*)              AS orders
-            FROM payments
-            WHERE user_id = %s
-              AND status   = 'paid'
-              AND paid_at IS NOT NULL
-              AND EXTRACT(YEAR  FROM paid_at) = %s
-              AND EXTRACT(MONTH FROM paid_at) = %s
-            GROUP BY customer
+                COALESCE(r.task, p.customer, 'Unknown') AS customer,
+                ROUND(SUM(p.total), 2)                  AS amount,
+                COUNT(*)                                AS orders
+            FROM payments p
+            LEFT JOIN reminders r ON r.id = p.reminder_id
+            WHERE p.user_id = %s
+              AND p.status   = 'paid'
+              AND p.paid_at IS NOT NULL
+              AND EXTRACT(YEAR  FROM p.paid_at) = %s
+              AND EXTRACT(MONTH FROM p.paid_at) = %s
+            GROUP BY COALESCE(r.task, p.customer, 'Unknown')
             ORDER BY amount DESC
             """,
             (user_id, year, month),
