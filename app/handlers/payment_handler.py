@@ -48,9 +48,9 @@ def handle_unpaid(user_id: str, phone: str):
             else:
                 due_str = f" · due {due.strftime('%d %b')}"
         task = r['task'] or r['customer'] or "Order"
-        ref_line = f"   Booking Ref: {ref}\n" if ref else ""
+        ref_line = f"   Booking Ref: *{ref}*\n" if ref else ""
         message += (
-            f"{i}. *{task}*\n"
+            f"{i}. {task}\n"
             f"{ref_line}"
             f"   Total: Rs.{float(r['total']):.0f}  ·  Paid: Rs.{float(r['advance']):.0f}\n"
             f"   *Balance: Rs.{float(r['balance']):.0f} due*{due_str}\n\n"
