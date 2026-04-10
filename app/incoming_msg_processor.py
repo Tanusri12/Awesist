@@ -507,114 +507,93 @@ def handle_expired_state(phone: str, text: str, state: dict, user: dict):
 def _send_help(phone: str, topic: str = ""):
     topic = topic.strip().lower()
 
-    if topic in ("orders", "order", "save", "saving"):
+    if topic in ("bookings", "booking", "orders", "order", "save", "saving", "edit", "delete"):
         send_whatsapp_message(
             phone,
-            "📦 *Saving orders — 3 ways:*\n\n"
-            "*1️⃣ Basic — just task and date:*\n"
+            "📦 *Bookings*\n\n"
+            "*Create a booking — just type naturally:*\n"
             "Anjali cake 14 Apr 6pm\n"
-            "→ I'll remind you 2 hrs before automatically\n\n"
-            "*2️⃣ With payment:*\n"
-            "Anjali cake 14 Apr 6pm total 1200 advance 300\n"
-            "→ Tracks what's paid and what's due\n\n"
-            "*3️⃣ With customer notification:*\n"
+            "Anjali cake 14 Apr 6pm total 1200 advance 300\n\n"
+            "*View bookings:*\n"
+            "• *bookings* — see all upcoming orders\n"
+            "• *find Anjali* — search by customer name\n\n"
+            "*Update a booking:*\n"
+            "• *edit* — update the last saved booking\n\n"
+            "*Mark as done:*\n"
+            "• *done 2* — mark booking 2 as delivered\n\n"
+            "*Delete a booking:*\n"
+            "• *delete 2* — delete booking 2\n"
+            "• *delete 1 3 5* — delete multiple at once",
+            show_help=False
+        )
+
+    elif topic in ("payments", "payment", "pay", "track", "paid", "unpaid"):
+        send_whatsapp_message(
+            phone,
+            "💰 *Payments*\n\n"
+            "*Add payment when saving a booking:*\n"
+            "Anjali cake 14 Apr 6pm total 1200 advance 300\n\n"
+            "*View who owes you:*\n"
+            "• *unpaid* — see all pending balances\n\n"
+            "*Collect payment:*\n"
+            "• *paid 2* — mark booking 2 as fully paid\n\n"
+            "*Send a payment reminder to customer:*\n"
+            "• *remind 2* — WhatsApp the customer for booking 2\n\n"
+            "*Track a payment without a booking:*\n"
+            "• track Anjali total 1200 advance 300",
+            show_help=False
+        )
+
+    elif topic in ("notify", "notification", "notifications", "msgs", "msg", "customer", "whatsapp"):
+        send_whatsapp_message(
+            phone,
+            "📨 *Customer Notifications*\n\n"
+            "*Auto-notify when saving a booking:*\n"
             "Anjali cake 14 Apr 6pm 9876543210\n"
-            "→ Anjali gets a WhatsApp when ready\n\n"
-            "*📅 Dates you can use:*\n"
-            "today · tomorrow · next friday\n"
-            "14 Apr · 14th April · in 3 days\n\n"
-            "I'll always confirm before saving.",
-            show_help=False
-        )
-
-    elif topic in ("payments", "payment", "pay", "track", "paid"):
-        send_whatsapp_message(
-            phone,
-            "💰 *Payments — 3 ways:*\n\n"
-            "*1️⃣ Include when saving:*\n"
-            "Anjali cake 14 Apr 6pm total 1200 advance 300\n"
-            "→ Saves order + tracks payment together\n\n"
-            "*2️⃣ Add to an existing order:*\n"
-            "Send *edit* → then reply:\n"
-            "payment 1200 advance 300\n"
-            "payment done  (fully paid)\n\n"
-            "*3️⃣ Standalone (no reminder created):*\n"
-            "track Anjali total 1200 advance 300\n"
-            "→ Payment only, no order saved\n\n"
-            "*Mark as collected:*\n"
-            "Send *unpaid* → then *paid 2*\n"
-            "(use the number shown in the list)",
-            show_help=False
-        )
-
-    elif topic in ("delete", "remove", "del"):
-        send_whatsapp_message(
-            phone,
-            "🗑️ *Deleting orders — 3 ways:*\n\n"
-            "*1️⃣ Delete one:*\n"
-            "delete 2\n"
-            "→ Removes order #2\n\n"
-            "*2️⃣ Delete several at once:*\n"
-            "delete 1 3 5\n"
-            "→ Removes orders 1, 3 and 5 in one go\n\n"
-            "*3️⃣ Clear everything:*\n"
-            "delete all\n"
-            "→ Removes all orders\n\n"
-            "Send *reminders* first to see the numbers.",
-            show_help=False
-        )
-
-    elif topic in ("notify", "notification", "customer", "whatsapp"):
-        send_whatsapp_message(
-            phone,
-            "📞 *Notify your customer — 2 ways:*\n\n"
-            "*1️⃣ Add number when saving:*\n"
-            "Priya cake 14 Apr 6pm 9876543210\n"
-            "→ Priya gets a WhatsApp when her order is ready\n\n"
-            "*2️⃣ Add to an existing order:*\n"
-            "Send *edit* → then reply:\n"
-            "phone 9876543210\n"
-            "→ We'll ask when to send the message\n\n"
-            "No extra steps needed from you.\n"
-            "The message goes out automatically at the time you set.",
+            "→ Anjali gets a WhatsApp when her order is ready\n\n"
+            "*Add phone to an existing booking:*\n"
+            "• *edit* → then reply: phone 9876543210\n\n"
+            "*Send a payment nudge:*\n"
+            "• *remind 2* — sends balance reminder to customer\n\n"
+            "*Check notification status:*\n"
+            "• *msgs* — see if customer received or seen the message\n"
+            "  📤 Sent · 📩 Received · 👀 Seen",
             show_help=False
         )
 
     elif topic in ("earnings", "earning", "income", "revenue", "sales"):
         send_whatsapp_message(
             phone,
-            "📊 *Earnings — 2 ways to view:*\n\n"
-            "*1️⃣ This month:*\n"
-            "Send *earnings*\n"
-            "→ Total collected, number of orders, top customers\n\n"
-            "*2️⃣ Last month:*\n"
-            "Send *earnings last month*\n"
-            "→ Same summary for the previous month\n\n"
-            "*How earnings are counted:*\n"
-            "Only payments you've marked as collected appear here.\n\n"
-            "To mark as collected:\n"
-            "Send *unpaid* → then *paid 2* (use the number shown)",
+            "📊 *Earnings*\n\n"
+            "*View this month:*\n"
+            "• *earnings* — total collected, orders count, top customers\n\n"
+            "*View last month:*\n"
+            "• *earnings last month*\n\n"
+            "*Note:* Only payments marked as collected (*paid 2*) appear here.\n\n"
+            "*To mark as collected:*\n"
+            "• *unpaid* → then *paid 2*",
             show_help=False
         )
 
     else:
-        # Default — short overview
+        # Default — short overview with topic hints
         send_whatsapp_message(
             phone,
-            "📖 *Commands*\n\n"
-            "📦 To save a new booking, just type: Anjali cake 14 Apr 6pm\n"
-            "📋 *reminders* — see upcoming orders\n"
-            "💰 *unpaid* — who still owes you\n"
-            "📊 *earnings* — this month's income\n"
-            "✏️ *edit* — update last saved order\n"
-            "✅ *done 2* — mark order #2 as delivered\n"
-            "🔍 *find Anjali* — search a customer's orders\n"
-            "💸 *paid 2* — mark order #2 payment collected\n"
-            "📲 *remind 2* — send payment reminder to customer\n"
-            "🗑️ *delete* — send *reminders* → then *delete 2*\n\n"
-            "For details, send:\n"
-            "*help orders*  ·  *help payments*\n"
-            "*help earnings*  ·  *help delete*  ·  *help notify*",
+            "📖 *Help*\n\n"
+            "*📦 Bookings*\n"
+            "• *bookings* · *find Anjali* · *done 2* · *edit* · *delete 2*\n"
+            "Reply *help bookings* for more\n\n"
+            "*💰 Payments*\n"
+            "• *unpaid* · *paid 2* · *remind 2*\n"
+            "Reply *help payments* for more\n\n"
+            "*📨 Notifications*\n"
+            "• *msgs* — check if customer saw your message\n"
+            "Reply *help notify* for more\n\n"
+            "*📊 Earnings*\n"
+            "• *earnings* · *earnings last month*\n"
+            "Reply *help earnings* for more\n\n"
+            "To save a booking just type naturally:\n"
+            "_Anjali cake 14 Apr 6pm total 800_",
             show_help=False
         )
 
