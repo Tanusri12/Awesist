@@ -61,11 +61,6 @@ def run_morning_summary():
             today_ids = {r["id"] for r in today}
             upcoming  = [r for r in all_r if r["id"] not in today_ids]
 
-            if not today and not upcoming:
-                mark_summary_sent(user_id)
-                skipped += 1
-                continue
-
             now_str = datetime.now().strftime("%-d %b")
             lines   = [f"☀️ *Good morning, {first_name}! Here's your day:*\n"]
 
@@ -110,6 +105,8 @@ def run_morning_summary():
             )
             if total_unpaid > 0:
                 lines.append(f"\n💰 *Rs.{int(total_unpaid)} pending* across all orders")
+            else:
+                lines.append("\n✅ No pending dues")
 
             # ── Nudge tip ──────────────────────────────────────────────────
             try:
