@@ -535,11 +535,14 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
             "step": "awaiting_payment_notify",
             "payment_id": None,
         })
+        biz_name = _get_business_name(phone)
         send_whatsapp_message(
             phone,
-            "📲 Want to WhatsApp your customer when the order is ready?\n"
-            "Reply with their number (e.g. 9876543210)\n"
-            "They'll get a message automatically when it's done.\n"
+            "📲 *Notify your customer?*\n\n"
+            "Share their number and we'll automatically WhatsApp them on the order day:\n\n"
+            f"_Hi! 👋 Heads up! Your order from {biz_name} is scheduled for today._\n"
+            "_⏰ Delivery time · 💰 Balance due (if any)_\n\n"
+            "Reply with their number e.g. *9876543210*\n"
             "Or reply *skip*",
             show_help=False
         )
@@ -576,14 +579,17 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
             "due_time": state.get("due_time"),
             "reminder_display": state.get("reminder_display", ""),
         })
+        biz_name = _get_business_name(phone)
         send_whatsapp_message(
             phone,
             f"✅ *Payment saved!*\n\n"
             f"📝 {task}\n"
             f"{payment_line}\n\n"
-            f"📲 Want to WhatsApp your customer when the order is ready?\n"
-            f"Reply with their number (e.g. 9876543210)\n"
-            f"They'll get a message automatically when it's done.\n"
+            f"📲 *Notify your customer?*\n\n"
+            f"Share their number and we'll automatically WhatsApp them on the order day:\n\n"
+            f"_Hi! 👋 Heads up! Your order from {biz_name} is scheduled for today._\n"
+            f"_⏰ Delivery time · 💰 Balance due (if any)_\n\n"
+            f"Reply with their number e.g. *9876543210*\n"
             f"Or reply *skip*",
             show_help=False
         )
