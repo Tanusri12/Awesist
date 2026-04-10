@@ -344,7 +344,7 @@ def _fast_path_with_date(
         )
         return
 
-    reminder_id, booking_ref = save_result
+    reminder_id, booking_ref, order_id = save_result
     reminder_display = reminder_dt.strftime('%d %b %Y %I:%M %p')
     due_dt_iso = due_dt.isoformat() if due_dt else None
     reminder_label = _reminder_label(reminder_offset)
@@ -1281,7 +1281,7 @@ def _handle_awaiting_reminder_time(user_id: str, phone: str, text: str, state: d
         )
         return True
 
-    reminder_id, booking_ref = save_result
+    reminder_id, booking_ref, order_id = save_result
     reminder_display = reminder_dt.strftime('%d %b %Y %I:%M %p')
     ref_tag = f"Booking *#{booking_ref}*\n"
 
@@ -2218,13 +2218,13 @@ def _save_reminder_with_due(user_id: str, task: str, reminder_dt, due_date: str,
             INSERT INTO reminders (user_id, task, reminder_time, due_at, booking_ref)
             SELECT %s, %s, %s, %s, ref_num FROM next_ref
             ON CONFLICT (user_id, task, reminder_time) DO NOTHING
-            RETURNING id, booking_ref
+            RETURNING id, booking_ref, order_id
             """,
             (user_id, user_id, task, reminder_dt, due_at)
         )
         result = cursor.fetchone()
         conn.commit()
-        return (result[0], result[1]) if result else None
+        return (result[0], result[1], result[2]) if result else None
     except Exception as e:
         conn.rollback()
         print("ERROR saving reminder:", e)

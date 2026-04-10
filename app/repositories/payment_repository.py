@@ -112,7 +112,9 @@ def get_unpaid(user_id: str) -> list:
                 p.advance,
                 ROUND(p.total - p.advance, 2) AS balance,
                 r.task,
-                r.due_at
+                r.due_at,
+                r.booking_ref,
+                p.customer_phone
             FROM payments p
             LEFT JOIN reminders r ON r.id = p.reminder_id
             WHERE p.user_id = %s

@@ -8,6 +8,25 @@ from repositories.payment_repository import (
 from whatsapp import send_whatsapp_message
 
 
+def _ref_label(r: dict) -> str:
+    """Return '#5' if booking_ref exists, else '' — used for display and commands."""
+    ref = r.get("booking_ref")
+    return f"#{ref}" if ref else ""
+
+
+def _find_unpaid_by_ref(unpaid: list, num: int):
+    """Look up an unpaid entry by booking_ref first, fall back to list position."""
+    # Try booking_ref match
+    for r in unpaid:
+        if r.get("booking_ref") == num:
+            return r
+    # Fall back to 1-based list index (for payment-only records with no booking)
+    idx = num - 1
+    if 0 <= idx < len(unpaid):
+        return unpaid[idx]
+    return None
+
+
 def handle_unpaid(user_id: str, phone: str):
     unpaid = get_unpaid(user_id)
     if not unpaid:
@@ -17,29 +36,32 @@ def handle_unpaid(user_id: str, phone: str):
     total_pending = sum(float(r["balance"]) for r in unpaid)
     message = "💰 *Pending balances:*\n\n"
     for i, r in enumerate(unpaid, start=1):
+        ref  = _ref_label(r)
+        ref_str = f" {ref}" if ref else ""
         due = r.get("due_at")
         due_str = ""
-        overdue = False
         if due:
             if isinstance(due, str):
                 due = datetime.fromisoformat(due)
             if due.date() < today:
                 due_str = f" · due {due.strftime('%d %b')} ⚠️ Overdue"
-                overdue = True
             else:
                 due_str = f" · due {due.strftime('%d %b')}"
         customer_name = r['customer'] or r['task']
+        ref_line = f"   Booking Ref: {ref}\n" if ref else ""
         message += (
             f"{i}. *{customer_name}*\n"
+            f"{ref_line}"
             f"   Total: Rs.{float(r['total']):.0f}  ·  Paid: Rs.{float(r['advance']):.0f}\n"
             f"   *Balance: Rs.{float(r['balance']):.0f} due*{due_str}\n\n"
         )
     message += f"Total due: *Rs.{total_pending:.0f}*\n\n"
+    first_ref  = _ref_label(unpaid[0]) or "1"
     first_name = (unpaid[0]['customer'] or unpaid[0]['task'] or "customer").split()[0]
-    message += f"*paid 1* → mark as received\n"
+    message += f"*paid {first_ref}* → mark as received\n"
     message += f"*paid all* → mark all as received\n"
-    message += f"*remind 1* → send payment reminder to {first_name}\n"
-    message += f"*remove 1* → remove from this list\n\n"
+    message += f"*remind {first_ref}* → send payment reminder to {first_name}\n"
+    message += f"*remove {first_ref}* → remove from this list\n\n"
     message += "Reply *earnings* · *help*"
     send_whatsapp_message(phone, message, show_help=False)
 
@@ -64,12 +86,11 @@ def handle_mark_paid(user_id: str, phone: str, text: str):
         return
 
     if arg.isdigit():
-        index  = int(arg) - 1
         unpaid = get_unpaid(user_id)
-        if index < 0 or index >= len(unpaid):
+        r = _find_unpaid_by_ref(unpaid, int(arg))
+        if not r:
             send_whatsapp_message(phone, "⚠️ Number not found. Send *unpaid* to see your list.", show_help=False)
             return
-        r = unpaid[index]
         mark_paid(r["id"], user_id)
         customer_name = r["customer"] or r["task"] or "the customer"
         amount = float(r["balance"])
@@ -164,16 +185,14 @@ def handle_remind_customer(user_id: str, phone: str, text: str):
     """remind <number> — send payment nudge WhatsApp to customer."""
     parts = text.strip().split()
     if len(parts) < 2 or not parts[1].isdigit():
-        send_whatsapp_message(phone, "⚠️ Send: *remind 2*  (use the number from *unpaid* list)", show_help=False)
+        send_whatsapp_message(phone, "⚠️ Send: *remind #5*  (use the booking # from *unpaid* list)", show_help=False)
         return
 
-    index  = int(parts[1]) - 1
     unpaid = get_unpaid(user_id)
-    if index < 0 or index >= len(unpaid):
+    r = _find_unpaid_by_ref(unpaid, int(parts[1]))
+    if not r:
         send_whatsapp_message(phone, "⚠️ Number not found. Send *unpaid* to see your list.", show_help=False)
         return
-
-    r = unpaid[index]
     customer_phone = r.get("customer_phone")
     if not customer_phone:
         send_whatsapp_message(
@@ -215,15 +234,15 @@ def handle_remind_customer(user_id: str, phone: str, text: str):
 def handle_remove_payment(user_id: str, phone: str, text: str):
     parts = text.strip().split()
     if len(parts) < 2 or not parts[1].isdigit():
-        send_whatsapp_message(phone, "❌ Send: *remove 2*  (use the number from *unpaid* list)", show_help=False)
+        send_whatsapp_message(phone, "❌ Send: *remove #5*  (use the booking # from *unpaid* list)", show_help=False)
         return
-    index  = int(parts[1]) - 1
     unpaid = get_unpaid(user_id)
-    if index < 0 or index >= len(unpaid):
+    r = _find_unpaid_by_ref(unpaid, int(parts[1]))
+    if not r:
         send_whatsapp_message(phone, "❌ Entry not found. Send *unpaid* to see your list.", show_help=False)
         return
-    r = unpaid[index]
-    customer = r["customer"] or r.get("task") or f"#{index + 1}"
+    ref      = _ref_label(r)
+    customer = r["customer"] or r.get("task") or ref or "entry"
     delete_payment_entry(r["id"], user_id)
     send_whatsapp_message(
         phone,
