@@ -511,7 +511,7 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
 
         set_state(phone, {"step": "awaiting_edit", "reminder_id": reminder_id})
         lines = [
-            "✏️ *Copy, edit one line, and send back:*\n",
+            "✏️ *Copy, edit and send:*\n",
             f"Task: {task_val}",
             f"Date: {date_val}",
         ]
@@ -1082,7 +1082,7 @@ def _send_template(phone: str, task: str, customer_phone=None, total=None, advan
 
     send_whatsapp_message(
         phone,
-        f"📋 Copy, fill in the blanks and send back:\n\n"
+        f"📋 Copy, edit and send:\n\n"
         f"{task_line}\n"
         f"{date_line}\n"
         f"{reminder_line}\n"
@@ -1308,7 +1308,7 @@ def _handle_awaiting_reminder_time(user_id: str, phone: str, text: str, state: d
             if balance > 0 else "💰 Fully paid ✅"
         )
         display_num = customer_phone[-10:] if customer_phone and len(customer_phone) >= 10 else customer_phone
-        notify_line  = f"\n📲 {display_num} notified: {notify_label_rt}" if customer_phone and notify_at_rt else ""
+        notify_line  = f"\n📲 {display_num} will be notified: {notify_label_rt}" if customer_phone and notify_at_rt else ""
         preview_line = ""
         if customer_phone and notify_at_rt:
             preview_line = f"\n\n📨 *Message {display_num} will receive:*\n{_customer_msg_preview(phone, task, due_dt_for_notify, balance)}"
@@ -1489,7 +1489,7 @@ def _handle_awaiting_advance(user_id: str, phone: str, text: str, state: dict) -
     preview_line = ""
     if notify_customer and customer_notify_at:
         display_num_adv = (state.get("customer_phone") or "")[-10:]
-        notify_line = f"\n📲 {display_num_adv} notified: {customer_notify_at.strftime('%-d %b at %-I:%M %p')}"
+        notify_line = f"\n📲 {display_num_adv} will be notified: {customer_notify_at.strftime('%-d %b at %-I:%M %p')}"
         due_date_s  = state.get("due_date")
         due_time_s  = state.get("due_time", "12:00")
         due_dt_adv  = _build_datetime(due_date_s, due_time_s) if due_date_s else None
@@ -1600,7 +1600,7 @@ def _ask_notify_customer(phone: str, state: dict, preset_option=None):
         )
         return
 
-    notify_line  = f"\n📲 {display_num} notified: {notify_label}" if notify_at else ""
+    notify_line  = f"\n📲 {display_num} will be notified: {notify_label}" if notify_at else ""
 
     booking_ref = state.get("booking_ref")
     ref_tag = f"Booking *{booking_ref}*\n" if booking_ref else ""
@@ -1718,7 +1718,7 @@ def _handle_awaiting_notify_customer(user_id: str, phone: str, text: str, state:
 
     display_num = (customer_phone or "")[-10:]
     notify_line = (
-        f"📲 {display_num} notified: {notify_label}"
+        f"📲 {display_num} will be notified: {notify_label}"
         if notify_customer and notify_label
         else "📵 No customer notification"
     )
@@ -1843,7 +1843,7 @@ def _handle_awaiting_notify_time(user_id: str, phone: str, text: str, state: dic
             return True
 
     notify_line = (
-        f"📲 {display_num} notified: {notify_label}"
+        f"📲 {display_num} will be notified: {notify_label}"
         if notify_customer and notify_label
         else "📵 No customer notification"
     )
@@ -1992,7 +1992,7 @@ def _handle_awaiting_payment_notify(user_id: str, phone: str, text: str, state: 
     if rem_display:
         lines.append(f"⏰ Your reminder: {rem_display}")
     if notify_at:
-        lines.append(f"📲 {display_num} notified: {notify_label}")
+        lines.append(f"📲 {display_num} will be notified: {notify_label}")
 
     # Payment line
     pay_id = payment_id or (existing["id"] if (existing := (get_payment_for_reminder(reminder_id) if reminder_id else None)) else None)
@@ -2123,7 +2123,7 @@ def _handle_awaiting_payment_notify_time(user_id: str, phone: str, text: str, st
         f"{ref_line}"
         f"📅 Due: {due_display}\n"
         f"⏰ Your reminder: {reminder_display}\n"
-        f"📲 {display_num_t} notified: {notify_at.strftime('%-d %b at %-I:%M %p')}\n"
+        f"📲 {display_num_t} will be notified: {notify_at.strftime('%-d %b at %-I:%M %p')}\n"
         f"{payment_line}\n\n"
         f"📨 *Message {display_num_t} will receive:*\n{preview}\n\n"
         f"Reply *edit* to update · *unpaid* to see balances",
