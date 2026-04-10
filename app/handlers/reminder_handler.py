@@ -715,8 +715,13 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
             new_due_date = extracted_dt.get("date")
             new_due_time = extracted_dt.get("time") or "09:00"
             if new_due_date:
-                due_at_cur = _build_due_datetime(new_due_date, new_due_time)
-                changed_lines.append(f"📅 {due_at_cur.strftime('%-d %b %-I:%M %p')}")
+                new_due_at = _build_due_datetime(new_due_date, new_due_time)
+                # Only flag as changed if different from current
+                old_due_str = due_at_cur.strftime('%-d %b %-I:%M %p') if due_at_cur else ""
+                new_due_str = new_due_at.strftime('%-d %b %-I:%M %p')
+                if new_due_str != old_due_str:
+                    changed_lines.append(f"📅 {new_due_str}")
+                due_at_cur = new_due_at
 
         # Reminder time — explicit Reminder: field takes priority, else recompute if due changed
         rem_dt = None
@@ -726,8 +731,20 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
             rem_date = extracted_rem.get("date")
             rem_time = extracted_rem.get("time")
             if rem_date and rem_time:
-                rem_dt = _build_due_datetime(rem_date, rem_time)
-                changed_lines.append(f"🔔 Reminder: {rem_dt.strftime('%-d %b %-I:%M %p')}")
+                new_rem_dt = _build_due_datetime(rem_date, rem_time)
+                old_rem_str = current.get("reminder_time", "")
+                if isinstance(old_rem_str, str) and old_rem_str:
+                    try:
+                        from datetime import datetime as _dt2
+                        old_rem_str = _dt2.fromisoformat(old_rem_str).strftime('%-d %b %-I:%M %p')
+                    except Exception:
+                        old_rem_str = ""
+                elif hasattr(old_rem_str, 'strftime'):
+                    old_rem_str = old_rem_str.strftime('%-d %b %-I:%M %p')
+                new_rem_str = new_rem_dt.strftime('%-d %b %-I:%M %p')
+                if new_rem_str != old_rem_str:
+                    changed_lines.append(f"🔔 Reminder: {new_rem_str}")
+                rem_dt = new_rem_dt
         if rem_dt is None and new_due_date:
             rem_dt = _default_reminder_time(due_at_cur)
 
@@ -778,22 +795,12 @@ def _handle_awaiting_edit(user_id: str, phone: str, text: str, state: dict) -> b
                                    notify_customer=True, customer_notify_at=notify_at)
                 changed_lines.append(f"📞 {display_num} — notified {notify_label}")
 
-        # Always show due + reminder time in confirmation
-        if due_at_cur:
-            due_line = f"📅 {due_at_cur.strftime('%-d %b %-I:%M %p')}"
-            if due_line not in changed_lines:
-                changed_lines.append(due_line)
-        if rem_dt:
-            rem_line = f"🔔 Remind: {rem_dt.strftime('%-d %b %-I:%M %p')}"
-            if rem_line not in changed_lines:
-                changed_lines.append(rem_line)
-
         if not changed_lines:
-            send_whatsapp_message(phone, "Nothing changed — all fields were the same.\n\nReply *edit* · *reminders*", show_help=False)
+            send_whatsapp_message(phone, "Nothing changed — all fields were the same.\n\nReply *edit* · *bookings*", show_help=False)
         else:
             send_whatsapp_message(
                 phone,
-                "✅ *Updated!*\n\n" + "\n".join(changed_lines) + "\n\nReply *edit* · *reminders*",
+                "✅ *Updated!*\n\n" + "\n".join(changed_lines) + "\n\nReply *edit* · *bookings*",
                 show_help=False
             )
         clear_state(phone)
