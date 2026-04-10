@@ -167,7 +167,7 @@ def process_customer_notifications():
                     row.get("business_type", "generic"),
                     float(row["balance"]) if row.get("balance") else 0
                 )
-                send_whatsapp_message(row["customer_phone"], customer_msg, show_help=False)
+                send_whatsapp_message(row["customer_phone"], customer_msg, show_help=False, vendor_msg=False)
                 log(f"Customer notified → {row['customer_phone'][:6]}***")
 
             mark_customer_notified(row["payment_id"])

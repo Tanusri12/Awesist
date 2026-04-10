@@ -30,7 +30,10 @@ def mark_message_read(message_id: str):
         print(f"MARK READ ERROR: {e}")
 
 
-def send_whatsapp_message(phone_number: str, message: str, show_help: bool = False) -> bool:
+def send_whatsapp_message(phone_number: str, message: str, show_help: bool = False, vendor_msg: bool = True) -> bool:
+    # Append help nudge to every vendor-facing message that doesn't already mention help
+    if vendor_msg and "help" not in message.lower():
+        message = message.rstrip() + "\n\nReply *help* for more commands"
 
     url = f"https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages"
 

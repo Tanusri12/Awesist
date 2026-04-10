@@ -172,7 +172,7 @@ def handle_thankyou_reply(user_id: str, phone: str, text: str, state: dict) -> b
             f"Payment received for your order. Thank you so much! 🙏\n\n"
             f"— {biz}"
         )
-        send_whatsapp_message(customer_phone, msg, show_help=False)
+        send_whatsapp_message(customer_phone, msg, show_help=False, vendor_msg=False)
         display_num = str(customer_phone)[-10:]
         send_whatsapp_message(
             phone,
