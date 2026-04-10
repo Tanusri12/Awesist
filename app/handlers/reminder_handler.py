@@ -511,7 +511,7 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
 
         set_state(phone, {"step": "awaiting_edit", "reminder_id": reminder_id})
         lines = [
-            "✏️ *Copy, edit and send:*\n",
+            "✏️ *Copy, edit and send back:*\n",
             f"Task: {task_val}",
             f"Date: {date_val}",
         ]
@@ -520,11 +520,7 @@ def _handle_just_saved(user_id: str, phone: str, text: str, state: dict) -> bool
         if phone_val:
             lines.append(f"Phone: {phone_val}")
         lines.append(f"Payment: {pay_val}")
-        lines.append(
-            f"\nTo update payment:\n"
-            f"*payment* 1200 advance 300\n"
-            f"*payment done* — mark as fully paid"
-        )
+        lines.append("\n_Edit any line above and send the whole message back._")
         send_whatsapp_message(phone, "\n".join(lines), show_help=False)
         return True
 
