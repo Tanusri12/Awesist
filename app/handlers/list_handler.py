@@ -234,7 +234,15 @@ def handle_booking_detail(user_id: str, phone: str, ref_num: int):
         if pay.get("customer_phone"):
             lines.append(f"📲 Customer: {str(pay['customer_phone'])[-10:]}")
 
-    lines.append("\nReply *edit " + str(ref_num) + "* to update · *done " + str(ref_num) + "* to mark delivered")
+    status = r.get("status", "pending")
+    actions = []
+    if status not in ("delivered", "cancelled"):
+        actions.append(f"*edit {ref_num}* to update")
+        actions.append(f"*done {ref_num}* to mark delivered")
+    if pay and float(pay.get("total") or 0) > float(pay.get("advance") or 0):
+        actions.append(f"*paid {ref_num}* to record payment")
+    if actions:
+        lines.append("\nReply " + " · ".join(actions))
     send_whatsapp_message(phone, "\n".join(lines), show_help=False)
 
 

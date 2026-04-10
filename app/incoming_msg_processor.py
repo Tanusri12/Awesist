@@ -692,11 +692,10 @@ def route_intent(user_id: str, phone: str, text: str):
                 return
             if reminder.get("status") in ("delivered", "cancelled"):
                 status_word = "delivered" if reminder.get("status") == "delivered" else "cancelled"
-                send_whatsapp_message(
-                    phone,
-                    f"⚠️ Booking {ref_num} is already {status_word} and cannot be edited.",
-                    show_help=False
-                )
+                msg = f"⚠️ Booking {ref_num} is already {status_word} and cannot be edited."
+                if reminder.get("status") == "delivered":
+                    msg += f"\n\nTo collect outstanding balance use *paid {ref_num}*"
+                send_whatsapp_message(phone, msg, show_help=False)
                 return
         else:
             reminder = get_most_recent_reminder(user_id)
